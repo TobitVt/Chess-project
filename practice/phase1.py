@@ -1,16 +1,16 @@
 # todo 
-# create piece classes
+# complete piece classes
 # score system
 # check/checkmate
 # game end
-# special moves (en passant)
+# special moves (en passant, castling)
 # timer
 # github
 # GUI
 # done.
 
 
-###############  board representation exercise ##################################
+###############  board representation ##################################
 
 # print function:
 def print_board(board, current_player):
@@ -50,9 +50,32 @@ for i in range(8):
     chess_board[6][i] = "P"
 
 
+
+def clear_highlights(board):
+
+    for r in range(8):
+        for c in range(8):
+            if board[r][c] == "#":
+                board[r][c] = "-"
+
+def highlight_moves(board, valid_moves):
+
+    # clear previous highlights first
+    # clear_highlights(board)
+
+    # add new highlights
+    for r, c in valid_moves:
+
+        if board[r][c] == "-":
+            board[r][c] = "#"
+
+
+
+
 ############### helper function exercise #######################################
 # chess notation to list index
 def convert_move(str_coord):
+    str_coord = str_coord.strip().lower()
 
     # if str_coord = e1:
 
@@ -63,6 +86,9 @@ def convert_move(str_coord):
     # takes the second char of the coordinates and turns it into a string, subtracting 
     # that from 8 to get the chess board coordinate that corresponds to the list index
     row = 8 - int(str_coord[1])
+
+    if not (0 <= row < 8 and 0 <= col < 8):
+       raise ValueError(f"Invalid board coordinate: {str_coord}")
 
     return (row, col)
 
@@ -77,29 +103,30 @@ def validate_player_move(player, piece):
     return False
 
 
+# list index to chess notation
+def convert_to_chess_notation(row, col):
+
+    file = chr(col + ord('a'))
+    rank = str(8 - row)
+
+    return file + rank
+
+
+
 ############### rules engine exercise #########################################
 
-def is_valid(start, end):
-    # checks input coordinates are correct length e.g. e4
-    if len(start) != 2 or len(end) != 2:
-        return False
-    
+def is_valid(move):
+    """Checks if the string input is a valid chess coordinate (e.g., 'e4')"""
 
-    start_file, start_rank = start[0].lower(), start[1]
-    end_file, end_rank = end[0].lower(), end[1]
-    
-    # Check files (a-h) and ranks (1-8)
-    if start_file not in 'abcdefgh' or not start_rank.isdigit() or int(start_rank) < 1 or int(start_rank) > 8:
-        return False
-    if end_file not in 'abcdefgh' or not end_rank.isdigit() or int(end_rank) < 1 or int(end_rank) > 8:
+    if len(move) != 2:
         return False
     
+    move_file, move_rank = move[0].lower(), move[1]
+    if move_file not in 'abcdefgh' or move_rank not in '12345678':
+        return False
     return True
 
 
-############# Exercise 2: Highlight and List Possible Moves #######################
-
-# create classes for pieces
 
 ############# PIECE CLASSES #################################################
 
@@ -126,35 +153,6 @@ class Rook(Piece):
 
 class Bishop(Piece):
     pass
-
-
-############# MOVE HELPERS ##################################################
-# list index to chess notation
-def convert_to_chess_notation(row, col):
-
-    file = chr(col + ord('a'))
-    rank = str(8 - row)
-
-    return file + rank
-
-
-def clear_highlights(board):
-
-    for r in range(8):
-        for c in range(8):
-            if board[r][c] == "#":
-                board[r][c] = "-"
-
-def highlight_moves(board, valid_moves):
-
-    # clear previous highlights first
-    clear_highlights(board)
-
-    # add new highlights
-    for r, c in valid_moves:
-
-        if board[r][c] == "-":
-            board[r][c] = "#"
 
 
 ############# LIST MOVES ####################################################
@@ -524,6 +522,7 @@ class Game:
         self.board = u_board
         self.current_p = "white"
         self.turn_count = 0
+        self.legal_moves = []
 
     def switch_turn(self):
         # switch to other player
@@ -533,37 +532,102 @@ class Game:
     def get_current_player(self):
         return self.current_p
     
+    
+    def validate_from(self, from_pos):
+
+        # ensure move is valid
+        while not is_valid(from_pos):
+            print("invalid coordinate\n")
+            from_pos = input("please select a different piece to move: ")
+                
+
+        # get piece
+        row1, col1 = convert_move(from_pos)
+
+        selected_piece = self.board[row1][col1]
+
+        # make sure player selection is not an empty square
+        while True:
+            row1, col1 = convert_move(from_pos)
+            selected_piece = self.board[row1][col1]
+
+            if selected_piece != "-":
+                break
+
+            print("no piece at selected square\n")
+            from_pos = input("please select a different piece to move: ")
+
+
+        # make sure that player owns the piece they want to move
+        while not validate_player_move(self.current_p, selected_piece):
+
+            print("that piece does not belong to you\n")
+            from_pos = input("please select a different piece to move: ")
+
+            row1, col1 = convert_move(from_pos)
+            selected_piece = self.board[row1][col1]
+            
+
+        # get all legal moves for selected piece on board
+        self.legal_moves = list_moves(selected_piece, row1, col1, self.current_p, self.board)
+
+        # if piece has no legal moves, prompt again
+        while len(self.legal_moves) == 0:
+
+            print("that piece has no legal moves\n")
+            from_pos = input("please select a different piece to move: ")
+
+            row1, col1 = convert_move(from_pos)
+            selected_piece = self.board[row1][col1]
+
+            self.legal_moves = list_moves(selected_piece, row1, col1, self.current_p, self.board)
+
+
+        # show all legal moves on board
+        highlight_moves(self.board, self.legal_moves)
+
+        # print board
+        print_board(self.board, self.current_p)
+
+        return from_pos
+
+
+    def validate_to(self, to_pos):
+
+        while not is_valid(to_pos):
+            print("invalid destination\n")
+            to_pos = input("please select a different place to move to: ")
+
+        while True:    
+            row2, col2 = convert_move(to_pos)
+
+            if (row2, col2) in self.legal_moves:
+                return to_pos
+            else:
+                print("illegal move for that piece\n")
+                to_pos = input("please select a different place to move to: ")
+
+    
     def make_move(self, from_pos, to_pos):
         # simulate move, then switch turns
-
-        # Move logic would go here (validate, update board, etc.)
 
         row1, col1 = convert_move(from_pos)
         row2, col2 = convert_move(to_pos)
 
-        f = chess_board[row1][col1] 
+        if not (0 <= row1 < 8 and 0 <= col1 < 8):
+            print("invalid FROM position")
+            return
 
-        if f == "-":
-            print("coordinates selected does not contain a piece\n")
-            m1 = input("please select a piece to move: ")
-            m2 = input("where should the piece be moved?: ")
-            self.make_move(m1, m2)
-            
+        if not (0 <= row2 < 8 and 0 <= col2 < 8):
+            print("invalid TO position")
+            return
 
-        # ensure that player at turn only moves own pieces
-        # white: capital letters, black: small letters
-        if validate_player_move(self.current_p, f):
-            chess_board[row2][col2] = chess_board[row1][col1] 
-            chess_board[row1][col1] = "-"
-        else:
-            print("piece selected does not belong to player at turn\n")
-            move1 = input("please select another piece to move: ")
-            move2 = input("where should the piece be moved?: ")
-            self.make_move(move1, move2)
-
+        self.board[row2][col2] = self.board[row1][col1] 
+        self.board[row1][col1] = "-"
 
         print(f"{self.current_p} moves from {from_pos} to {to_pos}")
         self.switch_turn()
+        clear_highlights(self.board)
 
 
 #################player representation exercise ###############################
@@ -581,6 +645,8 @@ class Player:
  
 
 ###############  game code: ####################################################
+
+# get info of players of next chess game:
 
 # name1 = input("please enter player 1's name: ")
 # score1 = int(input("please enter the elo score of player 1: "))
@@ -616,118 +682,14 @@ while True:
 
     print_board(chess_board, chess_game.get_current_player())
 
-    ########################################################
-    # SELECT PIECE
-    ########################################################
-
+    # get piece to move from current player and validate move
     from_piece = input("what piece do you want to move?: ")
+    from_piece = chess_game.validate_from(from_piece)
 
-    ########################################################
-    # BASIC INPUT VALIDATION
-    ########################################################
 
-    if not is_valid(from_piece, from_piece):
-        print("invalid coordinate\n")
-        continue
-
-    ########################################################
-    # GET PIECE
-    ########################################################
-
-    row1, col1 = convert_move(from_piece)
-
-    selected_piece = chess_board[row1][col1]
-
-    ########################################################
-    # EMPTY SQUARE CHECK
-    ########################################################
-
-    if selected_piece == "-":
-        print("no piece at selected square\n")
-        continue
-
-    ########################################################
-    # PLAYER OWNERSHIP CHECK
-    ########################################################
-
-    if not validate_player_move(
-        chess_game.get_current_player(),
-        selected_piece
-    ):
-        print("that piece does not belong to you\n")
-        continue
-
-    ########################################################
-    # GENERATE LEGAL MOVES
-    ########################################################
-
-    legal_moves = list_moves(
-        selected_piece,
-        row1,
-        col1,
-        chess_game.get_current_player(),
-        chess_board
-    )
-
-    ########################################################
-    # HIGHLIGHT MOVES
-    ########################################################
-
-    highlight_moves(chess_board, legal_moves)
-
-    ########################################################
-    # SHOW BOARD
-    ########################################################
-
-    print_board(chess_board, chess_game.get_current_player())
-
-    ########################################################
-    # NO LEGAL MOVES
-    ########################################################
-
-    if len(legal_moves) == 0:
-        print("that piece has no legal moves\n")
-        continue
-
-    ########################################################
-    # CHOOSE DESTINATION
-    ########################################################
-
+    # prompt player to pick where to move piece and validate move
     to_piece = input("where should the piece go?: ")
+    to_piece = chess_game.validate_to(to_piece)
 
-    ########################################################
-    # VALIDATE DESTINATION
-    ########################################################
-
-    if not is_valid(to_piece, to_piece):
-        print("invalid destination\n")
-        continue
-
-    row2, col2 = convert_move(to_piece)
-
-    ########################################################
-    # CHECK LEGALITY
-    ########################################################
-
-    if (row2, col2) not in legal_moves:
-        print("illegal move for that piece\n")
-        continue
-
-    ########################################################
-    # MAKE MOVE
-    ########################################################
-
+    # if move is valid, make move and prepare board for next players move
     chess_game.make_move(from_piece, to_piece)
-
-    clear_highlights(chess_board)
-
-    print_board(chess_board, chess_game.get_current_player())
-
-    ########################################################
-    # EXIT
-    ########################################################
-
-    # cont = input("type quit to exit or press enter to continue: ")
-
-    # if cont.lower() == "quit":
-    #     break
