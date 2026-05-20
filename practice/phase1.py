@@ -116,8 +116,6 @@ def convert_to_chess_notation(row, col):
 ############### rules engine exercise #########################################
 
 def is_valid(move):
-    """Checks if the string input is a valid chess coordinate (e.g., 'e4')"""
-
     if len(move) != 2:
         return False
     
@@ -125,6 +123,16 @@ def is_valid(move):
     if move_file not in 'abcdefgh' or move_rank not in '12345678':
         return False
     return True
+
+# def is_enemy(player, target):
+#     if target == "-":
+#         return False
+
+#     return (
+#         (player == "white" and target.islower()) or
+#         (player == "black" and target.isupper())
+#     )
+
 
 
 
@@ -137,38 +145,102 @@ class Piece:
 
 
 class Queen(Piece):
-    pass
+    def get_moves(self, row, col, board):
+        self.valid_moves = []
+
+        self.directions = [
+        (-1, 0),   # up
+        (1, 0),    # down
+        (0, -1),   # left
+        (0, 1),    # right
+        (-1, -1),  # up-left
+        (-1, 1),   # up-right
+        (1, -1),   # down-left
+        (1, 1)     # down-right
+        ]
+
+        for dr, dc in self.directions:
+            current_row = row + dr
+            current_col = col + dc
+
+            while 0 <= current_row < 8 and 0 <= current_col < 8:
+                target = board[current_row][current_col]
+
+                    #empty target square
+                if target == "-":
+                    self.valid_moves.append((current_row, current_col))
+
+
+                    #enemy target piece
+                elif player == "white" and target.islower():
+                    self.valid_moves.append((current_row, current_col))
+                    break
+
+                elif player == "black" and target.isupper():
+                    self.valid_moves.append((current_row, current_col))
+                    break
+
+                    #friendly target piece
+                else:
+                    break
+
+                current_row += dr
+                current_col += dc
+
+        return self.valid_moves
 
 class Pawn(Piece):
-    pass
+    def get_moves(self, row, col, board):
+        self.valid_moves = []
+
+        # white pawn
+        if self.player == "white":
+            # one square forward
+            if row - 1 >= 0 and board[row - 1][col] == "-":
+                self.valid_moves.append((row - 1, col))
+
+                # first move two squares
+                if row == 6 and board[row - 2][col] == "-":
+                    self.valid_moves.append((row - 2, col))
+
+            # diagonal captures
+            for dc in [-1, 1]:
+                new_col = col + dc
+
+                if 0 <= new_col < 8 and row - 1 >= 0:
+                    target = board[row - 1][new_col]
+
+                    if target != "-" and target.islower():
+                        self.valid_moves.append((row - 1, new_col))
+
+        # black pawn
+        else:
+            # one square forward
+            if row + 1 < 8 and board[row + 1][col] == "-":
+                self.valid_moves.append((row + 1, col))
+
+                # first move two squares
+                if row == 1 and board[row + 2][col] == "-":
+                    self.valid_moves.append((row + 2, col))
+
+            # diagonal captures
+            for dc in [-1, 1]:
+                new_col = col + dc
+
+                if 0 <= new_col < 8 and row + 1 < 8:
+                    target = board[row + 1][new_col]
+
+                    if target != "-" and target.isupper():
+                        self.valid_moves.append((row + 1, new_col))
+
+        
+        return self.valid_moves
+
 
 class King(Piece):
-    pass
-
-class Knight(Piece):
-    pass
-
-class Rook(Piece):
-    pass
-
-class Bishop(Piece):
-    pass
-
-
-############# LIST MOVES ####################################################
-
-def list_moves(piece, row, col, player, board):
-
-
-    valid_moves = []
-
-    #########################################################
-    # king MOVEMENT
-    #########################################################
-
-    if piece.lower() == "k":
-
-        directions = [
+    def get_moves(self, row, col, board):
+        self.valid_moves = []
+        self.directions = [
             (-1, 0),   # up
             (1, 0),    # down
             (0, -1),   # left
@@ -179,8 +251,7 @@ def list_moves(piece, row, col, player, board):
             (1, 1)     # down-right
         ]
 
-        for dr, dc in directions:
-
+        for dr, dc in self.directions:
             current_row = row + dr
             current_col = col + dc
 
@@ -188,196 +259,24 @@ def list_moves(piece, row, col, player, board):
 
                 target = board[current_row][current_col]
 
-                #################################################
-                # EMPTY SQUARE
-                #################################################
 
+                # empty target square
                 if target == "-":
-                    valid_moves.append((current_row, current_col))
+                    self.valid_moves.append((current_row, current_col))
 
                 elif player == "white" and target.islower():
-                    valid_moves.append((current_row, current_col))
+                    self.valid_moves.append((current_row, current_col))
 
                 elif player == "black" and target.isupper():
-                    valid_moves.append((current_row, current_col))
+                    self.valid_moves.append((current_row, current_col))
 
-# friendly pieces = do nothing
+        return self.valid_moves
 
-    #########################################################
-    # QUEEN MOVEMENT
-    #########################################################
+class Knight(Piece):
+    def get_moves(self, row, col, board):
+        self.valid_moves = []
 
-    if piece.lower() == "q":
-
-        directions = [
-            (-1, 0),   # up
-            (1, 0),    # down
-            (0, -1),   # left
-            (0, 1),    # right
-            (-1, -1),  # up-left
-            (-1, 1),   # up-right
-            (1, -1),   # down-left
-            (1, 1)     # down-right
-        ]
-
-        for dr, dc in directions:
-
-            current_row = row + dr
-            current_col = col + dc
-
-            while 0 <= current_row < 8 and 0 <= current_col < 8:
-
-                target = board[current_row][current_col]
-
-                #################################################
-                # EMPTY SQUARE
-                #################################################
-
-                if target == "-":
-
-                    valid_moves.append((current_row, current_col))
-
-                #################################################
-                # ENEMY PIECE
-                #################################################
-
-                elif player == "white" and target.islower():
-
-                    valid_moves.append((current_row, current_col))
-                    break
-
-                elif player == "black" and target.isupper():
-
-                    valid_moves.append((current_row, current_col))
-                    break
-
-                #################################################
-                # FRIENDLY PIECE
-                #################################################
-
-                else:
-                    break
-
-                current_row += dr
-                current_col += dc
-
-    #########################################################
-    # BISHOP MOVEMENT
-    #########################################################
-
-    if piece.lower() == "b":
-
-        directions = [
-            (-1, -1),  # up-left
-            (-1, 1),   # up-right
-            (1, -1),   # down-left
-            (1, 1)     # down-right
-        ]
-
-        for dr, dc in directions:
-
-            current_row = row + dr
-            current_col = col + dc
-
-            while 0 <= current_row < 8 and 0 <= current_col < 8:
-
-                target = board[current_row][current_col]
-
-                #################################################
-                # EMPTY SQUARE
-                #################################################
-
-                if target == "-":
-
-                    valid_moves.append((current_row, current_col))
-
-                #################################################
-                # ENEMY PIECE
-                #################################################
-
-                elif player == "white" and target.islower():
-
-                    valid_moves.append((current_row, current_col))
-                    break
-
-                elif player == "black" and target.isupper():
-
-                    valid_moves.append((current_row, current_col))
-                    break
-
-                #################################################
-                # FRIENDLY PIECE
-                #################################################
-
-                else:
-                    break
-
-                current_row += dr
-                current_col += dc
-
-    
-    #########################################################
-    # Rook MOVEMENT
-    #########################################################
-
-    if piece.lower() == "r":
-
-        directions = [
-            (-1, 0),   # up
-            (1, 0),    # down
-            (0, -1),   # left
-            (0, 1),    # right
-        ]
-
-        for dr, dc in directions:
-
-            current_row = row + dr
-            current_col = col + dc
-
-            while 0 <= current_row < 8 and 0 <= current_col < 8:
-
-                target = board[current_row][current_col]
-
-                #################################################
-                # EMPTY SQUARE
-                #################################################
-
-                if target == "-":
-
-                    valid_moves.append((current_row, current_col))
-
-                #################################################
-                # ENEMY PIECE
-                #################################################
-
-                elif player == "white" and target.islower():
-
-                    valid_moves.append((current_row, current_col))
-                    break
-
-                elif player == "black" and target.isupper():
-
-                    valid_moves.append((current_row, current_col))
-                    break
-
-                #################################################
-                # FRIENDLY PIECE
-                #################################################
-
-                else:
-                    break
-
-                current_row += dr
-                current_col += dc
-
-   
-    #########################################################
-    # knight MOVEMENT
-    #########################################################
-
-    if piece.lower() == "n":
-
-        directions = [
+        self.directions = [
             (-2, -1),
             (-2,  1),
 
@@ -391,92 +290,161 @@ def list_moves(piece, row, col, player, board):
             (2,  1)
         ]
 
-        for dr, dc in directions:
+        for dr, dc in self.directions:
 
             current_row = row + dr
             current_col = col + dc
 
             if 0 <= current_row < 8 and 0 <= current_col < 8:
-
                 target = board[current_row][current_col]
 
-                #################################################
-                # EMPTY SQUARE
-                #################################################
-
+                #empty target square
                 if target == "-":
-                    valid_moves.append((current_row, current_col))
+                    self.valid_moves.append((current_row, current_col))
 
+                # enemy target square
                 elif player == "white" and target.islower():
-                    valid_moves.append((current_row, current_col))
+                    self.valid_moves.append((current_row, current_col))
 
                 elif player == "black" and target.isupper():
-                    valid_moves.append((current_row, current_col))
+                    self.valid_moves.append((current_row, current_col))
 
                 # friendly pieces = do nothing
+        
+        return self.valid_moves
 
 
-    #########################################################
-    # PAWN MOVEMENT
-    #########################################################
 
-    elif piece.lower() == "p":
+class Rook(Piece):
+    def get_moves(self, row, col, board):
+        self.valid_moves = []
 
-        #################################################
-        # WHITE PAWN
-        #################################################
+        self.directions = [
+            (-1, 0),   # up
+            (1, 0),    # down
+            (0, -1),   # left
+            (0, 1),    # right
+        ]
 
-        if player == "white":
+        for dr, dc in self.directions:
 
-            # one square forward
-            if row - 1 >= 0 and board[row - 1][col] == "-":
-                valid_moves.append((row - 1, col))
+            current_row = row + dr
+            current_col = col + dc
 
-                # first move two squares
-                if row == 6 and board[row - 2][col] == "-":
-                    valid_moves.append((row - 2, col))
+            while 0 <= current_row < 8 and 0 <= current_col < 8:
+                target = board[current_row][current_col]
 
-            # diagonal captures
-            for dc in [-1, 1]:
+                #empty target square
+                if target == "-":
+                    self.valid_moves.append((current_row, current_col))
 
-                new_col = col + dc
 
-                if 0 <= new_col < 8 and row - 1 >= 0:
+                #enemy target piece
+                elif player == "white" and target.islower():
+                    self.valid_moves.append((current_row, current_col))
+                    break
 
-                    target = board[row - 1][new_col]
+                elif player == "black" and target.isupper():
+                    self.valid_moves.append((current_row, current_col))
+                    break
 
-                    if target != "-" and target.islower():
-                        valid_moves.append((row - 1, new_col))
+                #friendly target piece
+                else:
+                    break
 
-        #################################################
-        # BLACK PAWN
-        #################################################
+                current_row += dr
+                current_col += dc
+        
+        return self.valid_moves
 
-        else:
 
-            # one square forward
-            if row + 1 < 8 and board[row + 1][col] == "-":
-                valid_moves.append((row + 1, col))
+class Bishop(Piece):
+    def get_moves(self, row, col, board):
+        self.valid_moves = []
 
-                # first move two squares
-                if row == 1 and board[row + 2][col] == "-":
-                    valid_moves.append((row + 2, col))
+        self.directions = [
+            (-1, -1),  # up-left
+            (-1, 1),   # up-right
+            (1, -1),   # down-left
+            (1, 1)     # down-right
+        ]
 
-            # diagonal captures
-            for dc in [-1, 1]:
+        for dr, dc in self.directions:
+            current_row = row + dr
+            current_col = col + dc
 
-                new_col = col + dc
+            while 0 <= current_row < 8 and 0 <= current_col < 8:
+                target = board[current_row][current_col]
 
-                if 0 <= new_col < 8 and row + 1 < 8:
+                # empty target square
+                if target == "-":
+                    self.valid_moves.append((current_row, current_col))
 
-                    target = board[row + 1][new_col]
+                # enemy target piece
+                elif player == "white" and target.islower():
+                    self.valid_moves.append((current_row, current_col))
+                    break
 
-                    if target != "-" and target.isupper():
-                        valid_moves.append((row + 1, new_col))
+                elif player == "black" and target.isupper():
+                    self.valid_moves.append((current_row, current_col))
+                    break
 
-    #########################################################
-    # PRINT MOVES AS CHESS COORDINATES
-    #########################################################
+
+                # friendly target piece
+                else:
+                    break
+
+                current_row += dr
+                current_col += dc
+
+        return self.valid_moves
+
+    
+
+
+############# LIST MOVES ####################################################
+
+def list_moves(piece, row, col, player, board):
+    valid_moves = []
+
+
+    # king movement
+    if piece.lower() == "k":
+        king_piece = King(piece, player)
+        valid_moves = king_piece.get_moves(row, col, board)
+
+
+    # queen movement
+    if piece.lower() == "q":
+        queen_piece = Queen(piece, player)
+        valid_moves = queen_piece.get_moves(row, col, board)
+
+
+    # bishop movement
+    if piece.lower() == "b":
+        bishop_piece = Bishop(piece, player)
+        valid_moves = bishop_piece.get_moves(row, col, board)
+   
+
+    # Rook movement
+    if piece.lower() == "r":
+        rook_piece = Rook(piece, player)
+        valid_moves = rook_piece.get_moves(row, col, board)
+   
+
+    # knight movement
+    if piece.lower() == "n":
+        knight_piece = Knight(piece, player)
+        valid_moves = knight_piece.get_moves(row, col, board)
+
+
+    # pawn movement
+    if piece.lower() == "p":
+        pawn_piece = Pawn(piece, player)
+        valid_moves = pawn_piece.get_moves(row, col, board)
+
+
+    #print possible moves as chess coordinates
     print("\nPossible moves:")
 
     for r, c in valid_moves:
@@ -485,10 +453,8 @@ def list_moves(piece, row, col, player, board):
 
         target_piece = board[r][c]
 
-        #################################################
-        # ENEMY PIECE CAPTURE
-        #################################################
 
+        #print enemy piece capture possibility in list
         if target_piece != "-":
 
             piece_names = {
@@ -504,10 +470,7 @@ def list_moves(piece, row, col, player, board):
 
             print(f"{square}(take enemy {enemy_name})", end=" ")
 
-        #################################################
-        # NORMAL MOVE
-        #################################################
-
+        #print normal move in list
         else:
             print(square, end=" ")
 
