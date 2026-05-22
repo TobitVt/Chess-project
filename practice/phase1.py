@@ -1,11 +1,9 @@
 # todo 
-# complete piece classes
-# score system
 # check/checkmate
 # game end
 # special moves (en passant, castling)
 # timer
-# github
+# clean up code
 # GUI
 # done.
 
@@ -13,7 +11,7 @@
 ###############  board representation ##################################
 
 # print function:
-def print_board(board, current_player):
+def print_board(board):
     print("\n   a b c d e f g h \n")  
     for i in range(8):
         row_str = " ".join(board[i])
@@ -25,7 +23,7 @@ def print_board(board, current_player):
             print(f"{8 - i}  {row_str}")
     
     print("\n   a b c d e f g h \n")
-    print(f"player at turn: {current_player}")
+    # print(f"player at turn: {current_player}")
     # print("Board orientation: White at bottom (ranks 1-8), Black at top (ranks 8-1)")
 
 
@@ -68,6 +66,32 @@ def highlight_moves(board, valid_moves):
 
         if board[r][c] == "-":
             board[r][c] = "#"
+
+piece_values = {
+    "p": 1,
+    "n": 3,
+    "b": 3,
+    "r": 5,
+    "q": 9,
+    "k": 0
+}
+
+piece_names = {
+        "p": "pawn",
+        "r": "rook",
+        "n": "knight",
+        "b": "bishop",
+        "q": "queen",
+        "k": "king"
+    }
+
+def get_piece_name(piece):
+    if piece == "-":
+        return None
+
+    color = "black" if piece.islower() else "white"
+    name = piece_names[piece.lower()]
+    return f"{color} {name}"
 
 
 
@@ -124,14 +148,34 @@ def is_valid(move):
         return False
     return True
 
-# def is_enemy(player, target):
-#     if target == "-":
-#         return False
+def is_enemy(player, target):
+    if target == "-":
+        return False
 
-#     return (
-#         (player == "white" and target.islower()) or
-#         (player == "black" and target.isupper())
-#     )
+    return (
+        (player == "white" and target.islower()) or
+        (player == "black" and target.isupper())
+    )
+
+
+#################player representation exercise ###############################
+class Player:
+    def __init__(self, name, score = 0):
+        self.name = name
+        self.score = score
+        self.captured_pieces = []
+
+    def update_score(self, n):
+        self.score += int(n)
+
+    def capture_piece(self, piece):
+        self.captured_pieces.append(piece)
+
+    def get_captured_list(self):
+        return self.captured_pieces
+
+    def get_player_info(self):
+        return f"{self.name} - {self.score} points"
 
 
 
@@ -142,6 +186,16 @@ class Piece:
     def __init__(self, symbol, player):
         self.symbol = symbol
         self.player = player
+
+    def is_enemy(self, target):
+        if target == "-":
+            return False
+
+        return (
+            (self.player == "white" and target.islower()) or
+            (self.player == "black" and target.isupper())
+        )
+
 
 
 class Queen(Piece):
@@ -172,11 +226,7 @@ class Queen(Piece):
 
 
                     #enemy target piece
-                elif player == "white" and target.islower():
-                    self.valid_moves.append((current_row, current_col))
-                    break
-
-                elif player == "black" and target.isupper():
+                elif self.is_enemy(target):
                     self.valid_moves.append((current_row, current_col))
                     break
 
@@ -264,11 +314,9 @@ class King(Piece):
                 if target == "-":
                     self.valid_moves.append((current_row, current_col))
 
-                elif player == "white" and target.islower():
+                elif self.is_enemy(target):
                     self.valid_moves.append((current_row, current_col))
-
-                elif player == "black" and target.isupper():
-                    self.valid_moves.append((current_row, current_col))
+                    break
 
         return self.valid_moves
 
@@ -303,11 +351,9 @@ class Knight(Piece):
                     self.valid_moves.append((current_row, current_col))
 
                 # enemy target square
-                elif player == "white" and target.islower():
+                elif self.is_enemy(target):
                     self.valid_moves.append((current_row, current_col))
-
-                elif player == "black" and target.isupper():
-                    self.valid_moves.append((current_row, current_col))
+                    break
 
                 # friendly pieces = do nothing
         
@@ -340,11 +386,7 @@ class Rook(Piece):
 
 
                 #enemy target piece
-                elif player == "white" and target.islower():
-                    self.valid_moves.append((current_row, current_col))
-                    break
-
-                elif player == "black" and target.isupper():
+                elif self.is_enemy(target):
                     self.valid_moves.append((current_row, current_col))
                     break
 
@@ -381,11 +423,7 @@ class Bishop(Piece):
                     self.valid_moves.append((current_row, current_col))
 
                 # enemy target piece
-                elif player == "white" and target.islower():
-                    self.valid_moves.append((current_row, current_col))
-                    break
-
-                elif player == "black" and target.isupper():
+                elif self.is_enemy(target):
                     self.valid_moves.append((current_row, current_col))
                     break
 
@@ -399,93 +437,53 @@ class Bishop(Piece):
 
         return self.valid_moves
 
-    
 
 
-############# LIST MOVES ####################################################
+def create_piece_object(piece_symbol, player):
+    piece_classes = {
+        "q": Queen,
+        "k": King,
+        "r": Rook,
+        "b": Bishop,
+        "n": Knight,
+        "p": Pawn
+    }
 
-def list_moves(piece, row, col, player, board):
-    valid_moves = []
-
-
-    # king movement
-    if piece.lower() == "k":
-        king_piece = King(piece, player)
-        valid_moves = king_piece.get_moves(row, col, board)
-
-
-    # queen movement
-    if piece.lower() == "q":
-        queen_piece = Queen(piece, player)
-        valid_moves = queen_piece.get_moves(row, col, board)
+    piece_class = piece_classes[piece_symbol.lower()]
+    return piece_class(piece_symbol, player)
 
 
-    # bishop movement
-    if piece.lower() == "b":
-        bishop_piece = Bishop(piece, player)
-        valid_moves = bishop_piece.get_moves(row, col, board)
-   
-
-    # Rook movement
-    if piece.lower() == "r":
-        rook_piece = Rook(piece, player)
-        valid_moves = rook_piece.get_moves(row, col, board)
-   
-
-    # knight movement
-    if piece.lower() == "n":
-        knight_piece = Knight(piece, player)
-        valid_moves = knight_piece.get_moves(row, col, board)
-
-
-    # pawn movement
-    if piece.lower() == "p":
-        pawn_piece = Pawn(piece, player)
-        valid_moves = pawn_piece.get_moves(row, col, board)
-
-
-    #print possible moves as chess coordinates
+def print_possible_moves(valid_moves, board):
     print("\nPossible moves:")
 
     for r, c in valid_moves:
 
         square = convert_to_chess_notation(r, c)
-
         target_piece = board[r][c]
 
-
-        #print enemy piece capture possibility in list
         if target_piece != "-":
-
-            piece_names = {
-                "p": "pawn",
-                "r": "rook",
-                "n": "knight",
-                "b": "bishop",
-                "q": "queen",
-                "k": "king"
-            }
-
             enemy_name = piece_names[target_piece.lower()]
-
             print(f"{square}(take enemy {enemy_name})", end=" ")
 
-        #print normal move in list
         else:
             print(square, end=" ")
 
     print("\n")
-    return valid_moves
 
 
 ###############  game controller exercise ########################################
 
 class Game:
-    def __init__(self, u_board):
+    def __init__(self, u_board, pWhite, pBlack):
         self.board = u_board
         self.current_p = "white"
         self.turn_count = 0
         self.legal_moves = []
+
+        self.players = {
+            "white": pWhite,
+            "black": pBlack
+}
 
     def switch_turn(self):
         # switch to other player
@@ -493,7 +491,7 @@ class Game:
         self.turn_count += 1
 
     def get_current_player(self):
-        return self.current_p
+        return self.players[self.current_p]
     
     
     def validate_from(self, from_pos):
@@ -529,10 +527,20 @@ class Game:
 
             row1, col1 = convert_move(from_pos)
             selected_piece = self.board[row1][col1]
+
+            while selected_piece == "-":
+                print("no piece at selected square\n")
+                from_pos = input("please select a different piece to move: ")
+
+                row1, col1 = convert_move(from_pos)
+                selected_piece = self.board[row1][col1]
             
 
         # get all legal moves for selected piece on board
-        self.legal_moves = list_moves(selected_piece, row1, col1, self.current_p, self.board)
+        # self.legal_moves = list_moves(selected_piece, row1, col1, self.current_p, self.board)
+        piece_object = create_piece_object(selected_piece, self.current_p)
+
+        self.legal_moves = piece_object.get_moves(row1, col1, self.board)
 
         # if piece has no legal moves, prompt again
         while len(self.legal_moves) == 0:
@@ -543,14 +551,18 @@ class Game:
             row1, col1 = convert_move(from_pos)
             selected_piece = self.board[row1][col1]
 
-            self.legal_moves = list_moves(selected_piece, row1, col1, self.current_p, self.board)
+            # self.legal_moves = list_moves(selected_piece, row1, col1, self.current_p, self.board)
+            piece_object = create_piece_object(selected_piece, self.current_p)
+            self.legal_moves = piece_object.get_moves(row1, col1, self.board)
 
 
+        print_possible_moves(self.legal_moves, self.board)
         # show all legal moves on board
         highlight_moves(self.board, self.legal_moves)
 
+
         # print board
-        print_board(self.board, self.current_p)
+        print_board(self.board)
 
         return from_pos
 
@@ -584,6 +596,19 @@ class Game:
         if not (0 <= row2 < 8 and 0 <= col2 < 8):
             print("invalid TO position")
             return
+        
+
+        captured_piece = self.board[row2][col2]
+
+        if captured_piece != "-" and captured_piece != "#":
+            points = piece_values[captured_piece.lower()]
+            
+            currP = self.get_current_player()
+
+            currP.update_score(points)
+            currP.capture_piece(get_piece_name(captured_piece))
+            
+            
 
         self.board[row2][col2] = self.board[row1][col1] 
         self.board[row1][col1] = "-"
@@ -593,40 +618,13 @@ class Game:
         clear_highlights(self.board)
 
 
-#################player representation exercise ###############################
-class Player:
-    def __init__(self, name, score = 0):
-        self.name = name
-        self.score = score
-
-    def update_score(self, n):
-        self.score += int(n)
-
-    def get_player_info(self):
-        return f"{self.name} - {self.score} points"
-
  
 
 ###############  game code: ####################################################
 
-# get info of players of next chess game:
+player1 = Player("Player 1 / white", 0)
+player2 = Player("Player 2 / black", 0)
 
-# name1 = input("please enter player 1's name: ")
-# score1 = int(input("please enter the elo score of player 1: "))
-
-# player1 = Player(name1, score1)
-
-# name2 = input("please enter player 2's name: ")
-# score2 = int(input("please enter the elo score of player 2: "))
-
-# player2 = Player(name2, score2)
-
-player = Player("Alice", 100)
-player.update_score(10)  # Add 10
-print(player.get_player_info())  # Alice - 110 points
-
-player.update_score(-5)  # Subtract 5
-print(player.get_player_info())  # Alice - 105 points
 
 # timeLimit = 60* (int(input("Please select the time limit for each player(5/10/20/30)min: ")))
 
@@ -636,14 +634,19 @@ print(player.get_player_info())  # Alice - 105 points
 # }
 
 
-chess_game = Game(chess_board)
+chess_game = Game(chess_board, player1, player2)
 
 
 while True:
 
     clear_highlights(chess_board)
 
-    print_board(chess_board, chess_game.get_current_player())
+    curr = chess_game.get_current_player()
+
+    print_board(chess_board)
+
+    print(f"player at turn: {curr.get_player_info()}")
+    print(f"captured pieces: {curr.get_captured_list()}")
 
     # get piece to move from current player and validate move
     from_piece = input("what piece do you want to move?: ")
