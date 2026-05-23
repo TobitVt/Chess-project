@@ -148,15 +148,6 @@ def is_valid(move):
         return False
     return True
 
-def is_enemy(player, target):
-    if target == "-":
-        return False
-
-    return (
-        (player == "white" and target.islower()) or
-        (player == "black" and target.isupper())
-    )
-
 
 #################player representation exercise ###############################
 class Player:
@@ -199,7 +190,7 @@ class Piece:
 
 
 class Queen(Piece):
-    def get_moves(self, row, col, board):
+    def get_moves(self, row, col, board, game=None):
         self.valid_moves = []
 
         self.directions = [
@@ -240,7 +231,7 @@ class Queen(Piece):
         return self.valid_moves
 
 class Pawn(Piece):
-    def get_moves(self, row, col, board):
+    def get_moves(self, row, col, board, game=None):
         self.valid_moves = []
 
         # white pawn
@@ -250,7 +241,7 @@ class Pawn(Piece):
                 self.valid_moves.append((row - 1, col))
 
                 # first move two squares
-                if row == 6 and board[row - 2][col] == "-":
+                if row == 6 and board[row - 1][col] == "-" and board[row - 2][col] == "-":
                     self.valid_moves.append((row - 2, col))
 
             # diagonal captures
@@ -270,7 +261,7 @@ class Pawn(Piece):
                 self.valid_moves.append((row + 1, col))
 
                 # first move two squares
-                if row == 1 and board[row + 2][col] == "-":
+                if row == 1 and board[row + 1][col] == "-" and board[row + 2][col] == "-":
                     self.valid_moves.append((row + 2, col))
 
             # diagonal captures
@@ -288,7 +279,7 @@ class Pawn(Piece):
 
 
 class King(Piece):
-    def get_moves(self, row, col, board):
+    def get_moves(self, row, col, board, game=None):
         self.valid_moves = []
         self.directions = [
             (-1, 0),   # up
@@ -301,27 +292,30 @@ class King(Piece):
             (1, 1)     # down-right
         ]
 
+        enemy = "black" if self.player == "white" else "white"
+
         for dr, dc in self.directions:
             current_row = row + dr
             current_col = col + dc
 
             if 0 <= current_row < 8 and 0 <= current_col < 8:
-
                 target = board[current_row][current_col]
 
+                # friendly square
+                if target != "-" and not self.is_enemy(target):
+                    continue
 
-                # empty target square
-                if target == "-":
-                    self.valid_moves.append((current_row, current_col))
+                # target square under attack
+                if game: 
+                    if game.is_square_attacked(current_row, current_col, enemy):
+                        continue
 
-                elif self.is_enemy(target):
-                    self.valid_moves.append((current_row, current_col))
-                    break
+                self.valid_moves.append((current_row, current_col))
 
         return self.valid_moves
 
 class Knight(Piece):
-    def get_moves(self, row, col, board):
+    def get_moves(self, row, col, board, game=None):
         self.valid_moves = []
 
         self.directions = [
@@ -362,7 +356,7 @@ class Knight(Piece):
 
 
 class Rook(Piece):
-    def get_moves(self, row, col, board):
+    def get_moves(self, row, col, board, game=None):
         self.valid_moves = []
 
         self.directions = [
@@ -401,7 +395,7 @@ class Rook(Piece):
 
 
 class Bishop(Piece):
-    def get_moves(self, row, col, board):
+    def get_moves(self, row, col, board, game=None):
         self.valid_moves = []
 
         self.directions = [
@@ -450,6 +444,8 @@ def create_piece_object(piece_symbol, player):
     }
 
     piece_class = piece_classes[piece_symbol.lower()]
+    if not piece_class:
+        return None
     return piece_class(piece_symbol, player)
 
 
@@ -492,6 +488,23 @@ class Game:
 
     def get_current_player(self):
         return self.players[self.current_p]
+    
+    def is_square_attacked(self, row, col, enemy_player):
+        for r in range(8):
+            for c in range(8):
+                piece = self.board[r][c]
+
+                if piece == "-":
+                    continue
+
+                if validate_player_move(enemy_player, piece):
+                    piece_obj = create_piece_object(piece, enemy_player)
+                    moves = piece_obj.get_moves(r, c, self.board, self)
+
+                    if (row, col) in moves:
+                        return True
+
+        return False
     
     
     def validate_from(self, from_pos):
@@ -540,7 +553,7 @@ class Game:
         # self.legal_moves = list_moves(selected_piece, row1, col1, self.current_p, self.board)
         piece_object = create_piece_object(selected_piece, self.current_p)
 
-        self.legal_moves = piece_object.get_moves(row1, col1, self.board)
+        self.legal_moves = piece_object.get_moves(row1, col1, self.board, self)
 
         # if piece has no legal moves, prompt again
         while len(self.legal_moves) == 0:
@@ -553,7 +566,7 @@ class Game:
 
             # self.legal_moves = list_moves(selected_piece, row1, col1, self.current_p, self.board)
             piece_object = create_piece_object(selected_piece, self.current_p)
-            self.legal_moves = piece_object.get_moves(row1, col1, self.board)
+            self.legal_moves = piece_object.get_moves(row1, col1, self.board, self)
 
 
         print_possible_moves(self.legal_moves, self.board)
