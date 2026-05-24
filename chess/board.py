@@ -1,3 +1,5 @@
+from utils import *
+
 ###############  board representation ##################################
 
 # print function:

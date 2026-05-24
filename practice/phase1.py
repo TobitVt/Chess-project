@@ -1,7 +1,9 @@
 # todo 
-# game end
+# pawn promotion
 # special moves (en passant, castling)
+# game end
 # timer
+# bot to play against
 # clean up code
 # GUI
 # done.

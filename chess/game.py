@@ -1,3 +1,9 @@
+from move_validator import *
+from pieces import *
+from utils import *
+from board import *
+
+
 ###############  game controller exercise ########################################
 
 class Game:
