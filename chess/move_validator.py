@@ -1,28 +1,22 @@
-# move_validator.py (Rules Engine)
-# Role
+############### helper function exercise #######################################
 
-# Validates moves:
+def validate_player_move(player, piece):
+    if player == "white" and piece == piece.upper():
+        return True
+    
+    if player == "black" and piece == piece.lower():
+        return True
+    
+    return False
 
-# Legal moves
-# Check detection
-# Checkmate (later stage)
 
-# Inputs
-# Board state
-# Proposed move
+############### rules engine exercise #########################################
 
-# Outputs
-# True/False (valid move)
-# Possibly list of valid moves
-
-# Concepts
-# Algorithms
-# Rule enforcement
-# Separation of concerns
-
-# Done When
-# Rejects illegal moves
-# Accepts valid ones
-
-# Practice Exercise
-# Function that checks if a move stays within bounds of a grid
+def is_valid(move):
+    if len(move) != 2:
+        return False
+    
+    move_file, move_rank = move[0].lower(), move[1]
+    if move_file not in 'abcdefgh' or move_rank not in '12345678':
+        return False
+    return True

@@ -1,17 +1,26 @@
-# utils.py (Helper Functions)
-# Role
+# chess notation to list index
+def convert_move(str_coord):
+    str_coord = str_coord.strip().lower()
 
-# Common reusable functions
+    # if str_coord = e1:
 
-# Examples
-# Convert "e2" → (6, 4)
-# Validate input format
+    # takes e and uses the ord function to change it into a number(a = 96, b = 97, c = 98, etc) 
+    # then subtracts ord('a') which is 96 to get the correct row number for list indexes (a = 0, b = 1, c = 2, etc)
+    col = ord(str_coord[0].lower()) - ord('a')
 
-# Concepts
-# Functional decomposition
+    # takes the second char of the coordinates and turns it into a string, subtracting 
+    # that from 8 to get the chess board coordinate that corresponds to the list index
+    row = 8 - int(str_coord[1])
 
-# Done When
-# No repeated helper logic elsewhere
+    if not (0 <= row < 8 and 0 <= col < 8):
+       raise ValueError(f"Invalid board coordinate: {str_coord}")
 
-# Practice Exercise
-# Write a function that converts coordinates like "a1" to indices
+    return (row, col)
+
+# list index to chess notation
+def convert_to_chess_notation(row, col):
+
+    file = chr(col + ord('a'))
+    rank = str(8 - row)
+
+    return file + rank

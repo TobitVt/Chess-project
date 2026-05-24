@@ -1,18 +1,19 @@
-# Represents a player
+#################player representation exercise ###############################
+class Player:
+    def __init__(self, name, score = 0):
+        self.name = name
+        self.score = score
+        self.captured_pieces = []
 
-# Inputs
-# Name
-# Color (white/black)
+    def update_score(self, n):
+        self.score += int(n)
 
-# Outputs
-# Player identity
+    def capture_piece(self, piece):
+        self.captured_pieces.append(piece)
 
-# Concepts
-# Simple classes
-# Attributes
+    def get_captured_list(self):
+        return self.captured_pieces
 
-# Done When
-# Can create 2 players and assign turns
-# Practice Exercise
+    def get_player_info(self):
+        return f"{self.name} - {self.score} points"
 
-# Create a Player class with name and score
