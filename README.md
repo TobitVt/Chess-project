@@ -45,6 +45,11 @@ practice/
   - King
   - bishop
 
+- Check detection
+- Checkmate detection
+- Stalemate detection
+- Move undo system
+
 ---
 
 # Practice / Development Work
@@ -62,9 +67,6 @@ This is used to test features before integrating them into the main engine.
 # Planned Features
 
 ## Game Features
-- Check detection
-- Checkmate detection
-- Stalemate detection
 - Castling
 - En passant
 - Pawn promotion
@@ -80,7 +82,7 @@ This is used to test features before integrating them into the main engine.
 ## Additional Systems
 - Chess clock / timer system
 - Game history tracking
-- Move undo system
+
 
 ---
 

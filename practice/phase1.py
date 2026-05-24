@@ -1,5 +1,4 @@
 # todo 
-# check/checkmate
 # game end
 # special moves (en passant, castling)
 # timer
@@ -190,7 +189,7 @@ class Piece:
 
 
 class Queen(Piece):
-    def get_moves(self, row, col, board, game=None):
+    def get_moves(self, row, col, board):
         self.valid_moves = []
 
         self.directions = [
@@ -231,7 +230,7 @@ class Queen(Piece):
         return self.valid_moves
 
 class Pawn(Piece):
-    def get_moves(self, row, col, board, game=None):
+    def get_moves(self, row, col, board):
         self.valid_moves = []
 
         # white pawn
@@ -279,7 +278,7 @@ class Pawn(Piece):
 
 
 class King(Piece):
-    def get_moves(self, row, col, board, game=None):
+    def get_moves(self, row, col, board):
         self.valid_moves = []
         self.directions = [
             (-1, 0),   # up
@@ -305,17 +304,12 @@ class King(Piece):
                 if target != "-" and not self.is_enemy(target):
                     continue
 
-                # target square under attack
-                if game: 
-                    if game.is_square_attacked(current_row, current_col, enemy):
-                        continue
-
                 self.valid_moves.append((current_row, current_col))
 
         return self.valid_moves
 
 class Knight(Piece):
-    def get_moves(self, row, col, board, game=None):
+    def get_moves(self, row, col, board):
         self.valid_moves = []
 
         self.directions = [
@@ -356,7 +350,7 @@ class Knight(Piece):
 
 
 class Rook(Piece):
-    def get_moves(self, row, col, board, game=None):
+    def get_moves(self, row, col, board):
         self.valid_moves = []
 
         self.directions = [
@@ -395,7 +389,7 @@ class Rook(Piece):
 
 
 class Bishop(Piece):
-    def get_moves(self, row, col, board, game=None):
+    def get_moves(self, row, col, board):
         self.valid_moves = []
 
         self.directions = [
@@ -499,13 +493,95 @@ class Game:
 
                 if validate_player_move(enemy_player, piece):
                     piece_obj = create_piece_object(piece, enemy_player)
-                    moves = piece_obj.get_moves(r, c, self.board, self)
+                    moves = piece_obj.get_moves(r, c, self.board)
 
                     if (row, col) in moves:
                         return True
 
         return False
     
+    def find_king(self, player):
+        target = "K" if player == "white" else "k"
+
+        for r in range(8):
+            for c in range(8):
+
+                if self.board[r][c] == target:
+                    return (r, c)
+
+        return None
+
+    def is_in_check(self, player):
+        king_row, king_col = self.find_king(player)
+
+        enemy = "black" if player == "white" else "white"
+        
+        if self.is_square_attacked(king_row, king_col, enemy):
+            return True
+        else:
+            return False
+        
+    def simulate_move(self, row1, col1, row2, col2):
+        captured_piece = self.board[row2][col2]
+
+        self.board[row2][col2] = self.board[row1][col1]
+        self.board[row1][col1] = "-"
+
+        return captured_piece
+    
+    def undo_move(self, row1, col1, row2, col2, captured_piece):
+        self.board[row1][col1] = self.board[row2][col2]
+        self.board[row2][col2] = captured_piece
+
+
+    def is_legal_after_move(self, row1, col1, row2, col2):
+        captured_piece = self.simulate_move(row1, col1, row2, col2)
+
+        player = self.current_p
+        in_check = self.is_in_check(player)
+
+        self.undo_move(row1, col1, row2, col2, captured_piece)
+
+        return not in_check
+
+    def get_legal_moves(self, row1, col1, piece_object):
+
+        pseudo_moves = piece_object.get_moves(row1, col1, self.board)
+
+        legal_moves = []
+
+        for row2, col2 in pseudo_moves:
+            if self.is_legal_after_move(row1, col1, row2, col2):
+                legal_moves.append((row2, col2))
+
+        return legal_moves
+    
+    def has_any_legal_moves(self, player):
+        for r in range(8):
+            for c in range(8):
+                piece = self.board[r][c]
+
+                if piece == "-":
+                    continue
+
+                # ensure piece belongs to player
+                if not validate_player_move(player, piece):
+                    continue
+
+                piece_obj = create_piece_object(piece, player)
+                legal_moves = self.get_legal_moves(r, c, piece_obj)
+
+                if len(legal_moves) > 0:
+                    return True
+
+        return False
+    
+    def is_checkmate(self, player):
+        return self.is_in_check(player) and not self.has_any_legal_moves(player)
+    
+    def is_stalemate(self, player):
+        return not self.is_in_check(player) and not self.has_any_legal_moves(player)
+        
     
     def validate_from(self, from_pos):
 
@@ -550,10 +626,9 @@ class Game:
             
 
         # get all legal moves for selected piece on board
-        # self.legal_moves = list_moves(selected_piece, row1, col1, self.current_p, self.board)
         piece_object = create_piece_object(selected_piece, self.current_p)
+        self.legal_moves = self.get_legal_moves(row1, col1, piece_object)
 
-        self.legal_moves = piece_object.get_moves(row1, col1, self.board, self)
 
         # if piece has no legal moves, prompt again
         while len(self.legal_moves) == 0:
@@ -564,9 +639,26 @@ class Game:
             row1, col1 = convert_move(from_pos)
             selected_piece = self.board[row1][col1]
 
+                # prevent empty square
+            while selected_piece == "-":
+                print("no piece at selected square\n")
+                from_pos = input("please select a different piece to move: ")
+
+                row1, col1 = convert_move(from_pos)
+                selected_piece = self.board[row1][col1]
+
+            # prevent selecting enemy piece
+            while not validate_player_move(self.current_p, selected_piece):
+
+                print("that piece does not belong to you\n")
+                from_pos = input("please select a different piece to move: ")
+
+                row1, col1 = convert_move(from_pos)
+                selected_piece = self.board[row1][col1]
+
             # self.legal_moves = list_moves(selected_piece, row1, col1, self.current_p, self.board)
             piece_object = create_piece_object(selected_piece, self.current_p)
-            self.legal_moves = piece_object.get_moves(row1, col1, self.board, self)
+            self.legal_moves = self.get_legal_moves(row1, col1, piece_object)
 
 
         print_possible_moves(self.legal_moves, self.board)
@@ -672,3 +764,13 @@ while True:
 
     # if move is valid, make move and prepare board for next players move
     chess_game.make_move(from_piece, to_piece)
+
+    enemy = chess_game.current_p
+
+    if chess_game.is_checkmate(enemy):
+        print(f"CHECKMATE! {enemy} loses.")
+        break
+
+    if chess_game.is_stalemate(enemy):
+        print("STALEMATE! Draw.")
+        break
