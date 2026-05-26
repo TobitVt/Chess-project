@@ -49,6 +49,9 @@ practice/
 - Checkmate detection
 - Stalemate detection
 - Move undo system
+- Castling
+- En passant
+- Pawn promotion
 
 ---
 
@@ -67,9 +70,6 @@ This is used to test features before integrating them into the main engine.
 # Planned Features
 
 ## Game Features
-- Castling
-- En passant
-- Pawn promotion
 - Save / load game state
 
 ## AI System
