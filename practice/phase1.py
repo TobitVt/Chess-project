@@ -1,5 +1,4 @@
 # todo 
-# pawn promotion, en passant, castling
 # game end
 # timer
 # bot to play against
@@ -682,25 +681,30 @@ class Game:
             self.en_passant_target = (middle_row, col1)
             self.en_passant_capture_square = (row2, col2)
             self.en_passant_victim_player = self.current_p
-        
+            
     def move_rook_for_castling(self, row1, col1, row2, col2):
         moving_piece = self.board[row2][col2]
 
         if moving_piece.lower() != "k":
             return
 
+        # castling king must stay on the same row
+        if row1 != row2:
+            return
+
+        # castling means king moved two columns
         if abs(col2 - col1) != 2:
             return
 
         # kingside castling
         if col2 == 6:
-            self.board[row2][5] = self.board[row2][7]
-            self.board[row2][7] = "-"
+            self.board[row1][5] = self.board[row1][7]
+            self.board[row1][7] = "-"
 
         # queenside castling
         elif col2 == 2:
-            self.board[row2][3] = self.board[row2][0]
-            self.board[row2][0] = "-"
+            self.board[row1][3] = self.board[row1][0]
+            self.board[row1][0] = "-"
 
     def is_checkmate(self, player):
         return self.is_in_check(player) and not self.has_any_legal_moves(player)
