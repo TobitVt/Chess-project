@@ -7,6 +7,7 @@ from utils import *
 
 ###############  game code: ####################################################
 
+
 player1 = Player("Player 1 / white", 0)
 player2 = Player("Player 2 / black", 0)
 
@@ -23,8 +24,6 @@ chess_game = Game(chess_board, player1, player2)
 
 
 while True:
-
-    clear_highlights(chess_board)
 
     curr = chess_game.get_current_player()
 

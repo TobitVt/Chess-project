@@ -58,7 +58,7 @@ practice/
 # Practice / Development Work
 
 The `practice/` folder contains:
-- Early-stage full game prototype (~700 lines)
+- Early-stage full game prototype
 - Feature testing environment
 - Timer experimentation (in progress)
 - Refactoring and design exploration

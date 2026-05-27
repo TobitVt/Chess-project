@@ -1,6 +1,9 @@
 ############### helper function exercise #######################################
 
 def validate_player_move(player, piece):
+    if piece == "-":
+        return False
+    
     if player == "white" and piece == piece.upper():
         return True
     
@@ -8,6 +11,7 @@ def validate_player_move(player, piece):
         return True
     
     return False
+
 
 
 ############### rules engine exercise #########################################

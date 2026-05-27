@@ -3,20 +3,31 @@ from utils import *
 ###############  board representation ##################################
 
 # print function:
-def print_board(board):
-    print("\n   a b c d e f g h \n")  
-    for i in range(8):
-        row_str = " ".join(board[i])
-        if i == 0:
-            print(f"{8 - i}  {row_str}  - Black side")
-        elif i == 7:
-            print(f"{8 - i}  {row_str}  - White side")
-        else:
-            print(f"{8 - i}  {row_str}")
-    
+def print_board(board, highlights=None):
+    if highlights is None:
+        highlights = []
+
     print("\n   a b c d e f g h \n")
-    # print(f"player at turn: {current_player}")
-    # print("Board orientation: White at bottom (ranks 1-8), Black at top (ranks 8-1)")
+
+    for r in range(8):
+        row_items = []
+
+        for c in range(8):
+            if (r, c) in highlights and board[r][c] == "-":
+                row_items.append("#")
+            else:
+                row_items.append(board[r][c])
+
+        row_str = " ".join(row_items)
+
+        if r == 0:
+            print(f"{8 - r}  {row_str}  - Black side")
+        elif r == 7:
+            print(f"{8 - r}  {row_str}  - White side")
+        else:
+            print(f"{8 - r}  {row_str}")
+
+    print("\n   a b c d e f g h \n")
 
 
 
@@ -38,26 +49,6 @@ for i in range(8):
 for i in range(8):
     chess_board[7][i] = pieces[i].upper() # Uppercase for White
     chess_board[6][i] = "P"
-
-
-
-def clear_highlights(board):
-
-    for r in range(8):
-        for c in range(8):
-            if board[r][c] == "#":
-                board[r][c] = "-"
-
-def highlight_moves(board, valid_moves):
-
-    # clear previous highlights first
-    # clear_highlights(board)
-
-    # add new highlights
-    for r, c in valid_moves:
-
-        if board[r][c] == "-":
-            board[r][c] = "#"
 
 piece_values = {
     "p": 1,
@@ -85,20 +76,5 @@ def get_piece_name(piece):
     name = piece_names[piece.lower()]
     return f"{color} {name}"
 
-def print_possible_moves(valid_moves, board):
-    print("\nPossible moves:")
 
-    for r, c in valid_moves:
-
-        square = convert_to_chess_notation(r, c)
-        target_piece = board[r][c]
-
-        if target_piece != "-":
-            enemy_name = piece_names[target_piece.lower()]
-            print(f"{square}(take enemy {enemy_name})", end=" ")
-
-        else:
-            print(square, end=" ")
-
-    print("\n")
 

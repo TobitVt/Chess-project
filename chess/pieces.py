@@ -1,6 +1,7 @@
 
 ############# PIECE CLASSES #################################################
 
+
 class Piece:
     def __init__(self, symbol, player):
         self.symbol = symbol
@@ -64,45 +65,54 @@ class Pawn(Piece):
 
         # white pawn
         if self.player == "white":
+
+            forward_row = row - 1
+            double_forward_row = row - 2
+            start_row = 6
+
             # one square forward
-            if row - 1 >= 0 and board[row - 1][col] == "-":
-                self.valid_moves.append((row - 1, col))
+            if forward_row >= 0 and board[forward_row][col] == "-":
+                self.valid_moves.append((forward_row, col))
 
                 # first move two squares
-                if row == 6 and board[row - 1][col] == "-" and board[row - 2][col] == "-":
-                    self.valid_moves.append((row - 2, col))
+                if row == start_row and board[double_forward_row][col] == "-":
+                    self.valid_moves.append((double_forward_row, col))
 
             # diagonal captures
             for dc in [-1, 1]:
-                new_col = col + dc
+                capture_col = col + dc
 
-                if 0 <= new_col < 8 and row - 1 >= 0:
-                    target = board[row - 1][new_col]
+                if 0 <= capture_col < 8 and forward_row >= 0:
+                    target = board[forward_row][capture_col]
 
-                    if target != "-" and target.islower():
-                        self.valid_moves.append((row - 1, new_col))
+                    if self.is_enemy(target):
+                        self.valid_moves.append((forward_row, capture_col))
 
         # black pawn
         else:
+
+            forward_row = row + 1
+            double_forward_row = row + 2
+            start_row = 1
+
             # one square forward
-            if row + 1 < 8 and board[row + 1][col] == "-":
-                self.valid_moves.append((row + 1, col))
+            if forward_row < 8 and board[forward_row][col] == "-":
+                self.valid_moves.append((forward_row, col))
 
                 # first move two squares
-                if row == 1 and board[row + 1][col] == "-" and board[row + 2][col] == "-":
-                    self.valid_moves.append((row + 2, col))
+                if row == start_row and board[double_forward_row][col] == "-":
+                    self.valid_moves.append((double_forward_row, col))
 
             # diagonal captures
             for dc in [-1, 1]:
-                new_col = col + dc
+                capture_col = col + dc
 
-                if 0 <= new_col < 8 and row + 1 < 8:
-                    target = board[row + 1][new_col]
+                if 0 <= capture_col < 8 and forward_row < 8:
+                    target = board[forward_row][capture_col]
 
-                    if target != "-" and target.isupper():
-                        self.valid_moves.append((row + 1, new_col))
+                    if self.is_enemy(target):
+                        self.valid_moves.append((forward_row, capture_col))
 
-        
         return self.valid_moves
 
 
@@ -119,8 +129,6 @@ class King(Piece):
             (1, -1),   # down-left
             (1, 1)     # down-right
         ]
-
-        enemy = "black" if self.player == "white" else "white"
 
         for dr, dc in self.directions:
             current_row = row + dr
@@ -170,7 +178,6 @@ class Knight(Piece):
                 # enemy target square
                 elif self.is_enemy(target):
                     self.valid_moves.append((current_row, current_col))
-                    break
 
                 # friendly pieces = do nothing
         
@@ -266,7 +273,9 @@ def create_piece_object(piece_symbol, player):
         "p": Pawn
     }
 
-    piece_class = piece_classes[piece_symbol.lower()]
+    piece_class = piece_classes.get(piece_symbol.lower())
+
     if not piece_class:
         return None
+    
     return piece_class(piece_symbol, player)
