@@ -1,3 +1,4 @@
+
 ############### helper function exercise #######################################
 
 def validate_player_move(player, piece):
@@ -24,3 +25,4 @@ def is_valid(move):
     if move_file not in 'abcdefgh' or move_rank not in '12345678':
         return False
     return True
+

@@ -77,4 +77,21 @@ def get_piece_name(piece):
     return f"{color} {name}"
 
 
+def print_possible_moves(valid_moves, board):
+    print("\nPossible moves:")
+
+    for r, c in valid_moves:
+
+        square = convert_to_chess_notation(r, c)
+        target_piece = board[r][c]
+
+        if target_piece != "-":
+            enemy_name = piece_names[target_piece.lower()]
+            print(f"{square}(take enemy {enemy_name})", end=" ")
+
+        else:
+            print(square, end=" ")
+
+    print("\n")
+
 
