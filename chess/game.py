@@ -257,21 +257,21 @@ class Game:
         row, col = convert_move(pos)
         return row, col, self.board[row][col]
     
-    def get_valid_coordinate(self, prompt):
-        pos = input(prompt)
+    def get_valid_coordinate(self, prompt, input_func=input):
+        pos = input_func(prompt)
 
         while not is_valid(pos):
             print("invalid coordinate\n")
-            pos = input(prompt)
+            pos = input_func(prompt)
 
         return pos
     
-    def validate_from(self, from_pos):
+    def validate_from(self, from_pos, input_func=input):
         # ensure move is valid
 
         while not is_valid(from_pos):
             print("invalid coordinate\n")
-            from_pos = self.get_valid_coordinate("please select a valid piece to move: ")
+            from_pos = self.get_valid_coordinate("please select a valid piece to move: ", input_func)
                 
 
         # get piece
@@ -286,20 +286,20 @@ class Game:
                 break
 
             print("no piece at selected square\n")
-            from_pos = self.get_valid_coordinate("please select a different piece to move: ")
+            from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
 
 
         # make sure that player owns the piece they want to move
         while not validate_player_move(self.current_p, selected_piece):
 
             print("that piece does not belong to you\n")
-            from_pos = self.get_valid_coordinate("please select a different piece to move: ")
+            from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
 
             row1, col1, selected_piece = self.get_piece_at_position(from_pos)
 
             while selected_piece == "-":
                 print("no piece at selected square\n")
-                from_pos = self.get_valid_coordinate("please select a different piece to move: ")
+                from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
 
                 row1, col1, selected_piece = self.get_piece_at_position(from_pos)
             
@@ -313,14 +313,14 @@ class Game:
         while len(self.legal_moves) == 0:
 
             print("that piece has no legal moves\n")
-            from_pos = self.get_valid_coordinate("please select a different piece to move: ")
+            from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
 
             row1, col1, selected_piece = self.get_piece_at_position(from_pos)
 
                 # prevent empty square
             while selected_piece == "-":
                 print("no piece at selected square\n")
-                from_pos = self.get_valid_coordinate("please select a different piece to move: ")
+                from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
 
                 row1, col1, selected_piece = self.get_piece_at_position(from_pos)
 
@@ -328,7 +328,7 @@ class Game:
             while not validate_player_move(self.current_p, selected_piece):
 
                 print("that piece does not belong to you\n")
-                from_pos = self.get_valid_coordinate("please select a different piece to move: ")
+                from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
 
                 row1, col1, selected_piece = self.get_piece_at_position(from_pos)
 
@@ -346,13 +346,13 @@ class Game:
         return from_pos
 
 
-    def validate_to(self, to_pos):
+    def validate_to(self, to_pos, input_func=input):
 
         while True:
 
             while not is_valid(to_pos):
                 print("invalid destination\n")
-                to_pos = input("please select a different place to move to: ")
+                to_pos = input_func("please select a different place to move to: ")
 
             row2, col2 = convert_move(to_pos)
 
@@ -360,7 +360,7 @@ class Game:
                 return to_pos
 
             print("illegal move for that piece\n")
-            to_pos = input("please select a different place to move to: ")
+            to_pos = input_func("please select a different place to move to: ")
 
     def should_promote_pawn(self, piece, row):
 

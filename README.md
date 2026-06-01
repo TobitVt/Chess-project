@@ -15,12 +15,11 @@ chess/
 │   - piece movement rules
 │   - game controller
 │   - future AI integration
-│
+│   - timer class
 practice/
 │   Experimental and learning code
 │   - prototype chess engine
 │   - feature testing
-│   - timer experiments
 ```
 
 ---
@@ -52,6 +51,7 @@ practice/
 - Castling
 - En passant
 - Pawn promotion
+- Chess clock / timer system
 
 ---
 
@@ -80,7 +80,6 @@ This is used to test features before integrating them into the main engine.
 - Alpha-beta pruning optimization
 
 ## Additional Systems
-- Chess clock / timer system
 - Game history tracking
 
 

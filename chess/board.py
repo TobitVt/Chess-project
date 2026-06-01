@@ -13,8 +13,11 @@ def print_board(board, highlights=None):
         row_items = []
 
         for c in range(8):
-            if (r, c) in highlights and board[r][c] == "-":
-                row_items.append("#")
+            if (r, c) in highlights:
+                if board[r][c] == "-":
+                    row_items.append("#")
+                else:
+                    row_items.append("*")
             else:
                 row_items.append(board[r][c])
 

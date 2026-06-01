@@ -1,4 +1,8 @@
+import threading
+import time
+
 # todo 
+# deselect piece
 # game end
 # timer
 # bot to play against
@@ -20,8 +24,11 @@ def print_board(board, highlights=None):
         row_items = []
 
         for c in range(8):
-            if (r, c) in highlights and board[r][c] == "-":
-                row_items.append("#")
+            if (r, c) in highlights:
+                if board[r][c] == "-":
+                    row_items.append("#")
+                else:
+                    row_items.append("*")
             else:
                 row_items.append(board[r][c])
 
@@ -82,6 +89,79 @@ def get_piece_name(piece):
     color = "black" if piece.islower() else "white"
     name = piece_names[piece.lower()]
     return f"{color} {name}"
+
+
+def format_time(seconds):
+    seconds = max(0, seconds)
+    minutes, secs = divmod(seconds, 60)
+    return f"{minutes:02d}:{secs:02d}"
+
+
+class TestChessTimer:
+    def __init__(self, seconds_per_player):
+        self.remaining = {
+            "white": seconds_per_player,
+            "black": seconds_per_player
+        }
+        self.current_player = None
+        self._stop_event = threading.Event()
+        self._thread = None
+        self._turn_start_remaining = 0
+        self._input_prompt = ""
+
+    def get_remaining(self, player):
+        return max(0, self.remaining.get(player, 0))
+
+    def has_time(self, player):
+        return self.get_remaining(player) > 0
+
+    def _countdown(self):
+        while not self._stop_event.is_set() and self.remaining[self.current_player] > 0:
+            mins, secs = divmod(self.remaining[self.current_player], 60)
+            timer_text = f"[{mins:02d}:{secs:02d}] {self._input_prompt}"
+
+            try:
+                print(f"\r{timer_text}", end="", flush=True)
+            except Exception:
+                pass
+
+            time.sleep(1)
+            self.remaining[self.current_player] -= 1
+
+        if self.remaining[self.current_player] == 0:
+            try:
+                print("\n00:00 - Time's up!\n", end="", flush=True)
+            except Exception:
+                pass
+
+    def start_turn(self, player):
+        self.current_player = player
+        self._turn_start_remaining = self.get_remaining(player)
+        self._stop_event.clear()
+        self._thread = None
+
+    def timed_input(self, prompt):
+        self._input_prompt = prompt
+        try:
+            print(f"[{format_time(self.get_remaining(self.current_player))}] {prompt}", end="", flush=True)
+        except Exception:
+            pass
+
+        if self._thread is None or not self._thread.is_alive():
+            self._thread = threading.Thread(target=self._countdown)
+            self._thread.daemon = True
+            self._thread.start()
+
+        return input()
+
+    def stop_turn(self):
+        self._stop_event.set()
+        if self._thread is not None:
+            self._thread.join(timeout=0.1)
+
+        elapsed = max(0, self._turn_start_remaining - self.get_remaining(self.current_player))
+        timed_out = self.get_remaining(self.current_player) == 0
+        return elapsed, timed_out
 
 
 
@@ -716,102 +796,78 @@ class Game:
         row, col = convert_move(pos)
         return row, col, self.board[row][col]
     
-    def get_valid_coordinate(self, prompt):
-        pos = input(prompt)
+    def get_valid_coordinate(self, prompt, input_func=input):
+        pos = input_func(prompt)
 
         while not is_valid(pos):
             print("invalid coordinate\n")
-            pos = input(prompt)
+            pos = input_func(prompt)
 
         return pos
     
-    def validate_from(self, from_pos):
+    def validate_from(self, from_pos, input_func=input):
         # ensure move is valid
 
         while not is_valid(from_pos):
             print("invalid coordinate\n")
-            from_pos = self.get_valid_coordinate("please select a valid piece to move: ")
-                
+            from_pos = self.get_valid_coordinate("please select a valid piece to move: ", input_func)
 
         # get piece
         row1, col1, selected_piece = self.get_piece_at_position(from_pos)
 
         # make sure player selection is not an empty square
-        while True:
-            
-            row1, col1, selected_piece = self.get_piece_at_position(from_pos)
-
-            if selected_piece != "-":
-                break
-
+        while selected_piece == "-":
             print("no piece at selected square\n")
-            from_pos = self.get_valid_coordinate("please select a different piece to move: ")
-
+            from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
+            row1, col1, selected_piece = self.get_piece_at_position(from_pos)
 
         # make sure that player owns the piece they want to move
         while not validate_player_move(self.current_p, selected_piece):
-
             print("that piece does not belong to you\n")
-            from_pos = self.get_valid_coordinate("please select a different piece to move: ")
-
+            from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
             row1, col1, selected_piece = self.get_piece_at_position(from_pos)
 
             while selected_piece == "-":
                 print("no piece at selected square\n")
-                from_pos = self.get_valid_coordinate("please select a different piece to move: ")
-
+                from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
                 row1, col1, selected_piece = self.get_piece_at_position(from_pos)
-            
 
         # get all legal moves for selected piece on board
         piece_object = create_piece_object(selected_piece, self.current_p)
         self.legal_moves = self.get_legal_moves(self.current_p, row1, col1, piece_object)
 
-
         # if piece has no legal moves, prompt again
         while len(self.legal_moves) == 0:
-
             print("that piece has no legal moves\n")
-            from_pos = self.get_valid_coordinate("please select a different piece to move: ")
-
+            from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
             row1, col1, selected_piece = self.get_piece_at_position(from_pos)
 
-                # prevent empty square
             while selected_piece == "-":
                 print("no piece at selected square\n")
-                from_pos = self.get_valid_coordinate("please select a different piece to move: ")
-
+                from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
                 row1, col1, selected_piece = self.get_piece_at_position(from_pos)
 
-            # prevent selecting enemy piece
             while not validate_player_move(self.current_p, selected_piece):
-
                 print("that piece does not belong to you\n")
-                from_pos = self.get_valid_coordinate("please select a different piece to move: ")
-
+                from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
                 row1, col1, selected_piece = self.get_piece_at_position(from_pos)
 
-            # self.legal_moves = list_moves(selected_piece, row1, col1, self.current_p, self.board)
             piece_object = create_piece_object(selected_piece, self.current_p)
             self.legal_moves = self.get_legal_moves(self.current_p, row1, col1, piece_object)
 
-
         print_possible_moves(self.legal_moves, self.board)
-        # show all legal moves on board
-
-        # print board
         print_board(self.board, self.legal_moves)
 
         return from_pos
 
 
-    def validate_to(self, to_pos):
+    def validate_to(self, to_pos, input_func=input):
 
         while True:
 
             while not is_valid(to_pos):
                 print("invalid destination\n")
-                to_pos = input("please select a different place to move to: ")
+                to_pos = input_func("please select a different place to move to: ")
 
             row2, col2 = convert_move(to_pos)
 
@@ -819,7 +875,7 @@ class Game:
                 return to_pos
 
             print("illegal move for that piece\n")
-            to_pos = input("please select a different place to move to: ")
+            to_pos = input_func("please select a different place to move to: ")
 
     def should_promote_pawn(self, piece, row):
 
@@ -994,16 +1050,23 @@ class Game:
 
 ###############  game code: ####################################################
 
+def get_time_limit_minutes():
+    choices = {"3": 3, "5": 5, "10": 10, "30": 30}
+    prompt = "Select total minutes per player (3/5/10/30): "
+    while True:
+        value = input(prompt).strip()
+        if value in choices:
+            return choices[value] * 60
+        print("Please choose one of: 3, 5, 10, 30")
+
+
 player1 = Player("Player 1 / white", 0)
 player2 = Player("Player 2 / black", 0)
 
+chess_game = Game(chess_board, player1, player2)
 
-# timeLimit = 60* (int(input("Please select the time limit for each player(5/10/20/30)min: ")))
-
-# timers = {
-#     "p1": timeLimit,
-#     "p2": timeLimit
-# }
+time_limit = get_time_limit_minutes()
+chess_timer = TestChessTimer(time_limit)
 
 
 chess_game = Game(chess_board, player1, player2)
@@ -1011,24 +1074,45 @@ chess_game = Game(chess_board, player1, player2)
 
 while True:
 
+    current_color = chess_game.current_p
     curr = chess_game.get_current_player()
 
+    if chess_game.is_checkmate(current_color):
+        print_board(chess_board)
+        print(f"CHECKMATE! {current_color.capitalize()} loses.")
+        break
+
+    if chess_game.is_stalemate(current_color):
+        print_board(chess_board)
+        print("STALEMATE! Draw.")
+        break
+
     print_board(chess_board)
+
+    if chess_game.is_in_check(current_color):
+        print("CHECK! You are in check.")
 
     print(f"player at turn: {curr.get_player_info()}")
     print(f"captured pieces: {curr.get_captured_list()}")
 
-    # get piece to move from current player and validate move
-    from_piece = input("what piece do you want to move?: ")
-    from_piece = chess_game.validate_from(from_piece)
+    if not chess_timer.has_time(current_color):
+        print(f"{current_color.capitalize()} ran out of time. Game over.")
+        break
 
+    chess_timer.start_turn(current_color)
+    from_piece = chess_timer.timed_input("what piece do you want to move?: ")
+    from_piece = chess_game.validate_from(from_piece, input_func=chess_timer.timed_input)
 
-    # prompt player to pick where to move piece and validate move
-    to_piece = input("where should the piece go?: ")
-    to_piece = chess_game.validate_to(to_piece)
+    to_piece = chess_timer.timed_input("where should the piece go?: ")
+    to_piece = chess_game.validate_to(to_piece, input_func=chess_timer.timed_input)
+    elapsed, timed_out = chess_timer.stop_turn()
 
-    # if move is valid, make move and prepare board for next players move
+    if timed_out:
+        print(f"{current_color.capitalize()} ran out of time! Move not completed.")
+        break
+
     chess_game.make_move(from_piece, to_piece)
+    print(f"Move time: {elapsed} seconds | Remaining: {format_time(chess_timer.get_remaining(current_color))}")
 
     enemy = chess_game.current_p
 
