@@ -2,6 +2,7 @@ from move_validator import *
 from pieces import *
 from utils import *
 from board import *
+import random
 
 
 ###############  game controller exercise ########################################
@@ -529,3 +530,59 @@ class Game:
 
         print(f"{self.current_p} moves from {from_pos} to {to_pos}")
         self.switch_turn()
+
+    # easy level bot code test:
+
+    def easy_bot_move(self):
+        bot_moves = []
+
+        for r in range(8):
+            for c in range(8):
+                piece = self.board[r][c]
+
+                # skip empty squares
+                if piece == "-":
+                    continue
+
+                # skip opponent pieces
+                if not validate_player_move(self.current_p, piece):
+                    continue
+
+                # create the piece object
+                piece_object = create_piece_object(piece, self.current_p)
+
+                # get legal moves for that piece
+                legal_moves = self.get_legal_moves(self.current_p, r, c, piece_object)
+
+                # store every legal move
+                for move in legal_moves:
+                    from_square = convert_to_chess_notation(r, c)
+                    to_square = convert_to_chess_notation(move[0], move[1])
+
+                    bot_moves.append((from_square, to_square))
+
+        if len(bot_moves) == 0:
+            return None
+
+        return random.choice(bot_moves)
+
+
+    def easyBot_to(self):
+        if len(self.legal_moves) == 0:
+            return None
+        
+        row, col = random.choice(self.legal_moves)
+        return convert_to_chess_notation(row, col)
+
+
+    def medBot_from(self):
+        pass
+
+    def medBot_to(self):
+        pass
+
+    def hardBot_from(self):
+        pass
+
+    def hardBot_to(self):
+        pass

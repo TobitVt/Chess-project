@@ -1,12 +1,13 @@
 import threading
 import time
+import random
 
 # todo 
-# deselect piece
+# log in/ sign up
+# DB for user log in/sign up 
+# DB for saving game state when playing against bot
 # game end
-# timer
-# bot to play against
-# clean up code
+# medium and hard bot to play against
 # GUI
 # done.
 
@@ -1044,6 +1045,66 @@ class Game:
 
         print(f"{self.current_p} moves from {from_pos} to {to_pos}")
         self.switch_turn()
+
+
+    # easy level bot code test:
+
+    def easy_bot_move(self):
+        bot_moves = []
+
+        for r in range(8):
+            for c in range(8):
+                piece = self.board[r][c]
+
+                # skip empty squares
+                if piece == "-":
+                    continue
+
+                # skip opponent pieces
+                if not validate_player_move(self.current_p, piece):
+                    continue
+
+                # create the piece object
+                piece_object = create_piece_object(piece, self.current_p)
+
+                # get legal moves for that piece
+                legal_moves = self.get_legal_moves(self.current_p, r, c, piece_object)
+
+                # store every legal move
+                for move in legal_moves:
+                    from_square = convert_to_chess_notation(r, c)
+                    to_square = convert_to_chess_notation(move[0], move[1])
+
+                    bot_moves.append((from_square, to_square))
+
+        if len(bot_moves) == 0:
+            return None
+
+        return random.choice(bot_moves)
+
+
+    def easyBot_to(self):
+        if len(self.legal_moves) == 0:
+            return None
+        
+        row, col = random.choice(self.legal_moves)
+        return convert_to_chess_notation(row, col)
+    
+
+    def medBot_from(self):
+        pass
+
+    def medBot_to(self):
+        pass
+
+    def hardBot_from(self):
+        pass
+
+    def hardBot_to(self):
+        pass
+
+
+
   
 
  
@@ -1060,8 +1121,128 @@ def get_time_limit_minutes():
         print("Please choose one of: 3, 5, 10, 30")
 
 
+def get_game_mode():
+    prompt = "Select mode: user or bot? (user/bot): "
+    while True:
+        mode = input(prompt).strip().lower()
+        if mode in ("user", "u"):
+            return "user"
+        if mode in ("bot", "b"):
+            return "bot"
+        print("Please enter 'user' or 'bot'.")
+
+
+def get_bot_difficulty():
+    prompt = "Select bot difficulty (easy/medium/hard): "
+    while True:
+        difficulty = input(prompt).strip().lower()
+        if difficulty in ("easy", "medium", "hard"):
+            return difficulty
+        print("Please enter 'easy', 'medium', or 'hard'.")
+
+def get_bot_color():
+    prompt = "select the color the bot should play as(black/white): "
+    while True:
+        color = input(prompt).strip().lower()
+        if color in ("black", "white"):
+            return color
+        print("please select either black or white.")
+
+
+def print_turn_header(game):
+    current_color = game.current_p
+    if game.is_in_check(current_color):
+        print("CHECK! You are in check.")
+    print_board(game.board)
+    current_player = game.get_current_player()
+    print(f"player at turn: {current_player.get_player_info()}")
+    print(f"captured pieces: {current_player.get_captured_list()}")
+
+
+def show_end_game(game, player_color):
+    if game.is_checkmate(player_color):
+        print_board(game.board)
+        print(f"CHECKMATE! {player_color.capitalize()} loses.")
+        return True
+
+    if game.is_stalemate(player_color):
+        print_board(game.board)
+        print("STALEMATE! Draw.")
+        return True
+
+    return False
+
+
+def perform_human_turn(game, timer):
+    from_piece = timer.timed_input("what piece do you want to move?: ")
+    from_piece = game.validate_from(from_piece, input_func=timer.timed_input)
+    to_piece = timer.timed_input("where should the piece go?: ")
+    to_piece = game.validate_to(to_piece, input_func=timer.timed_input)
+    elapsed, timed_out = timer.stop_turn()
+
+    if timed_out:
+        return None, True
+
+    game.make_move(from_piece, to_piece)
+    return elapsed, False
+
+
+def perform_bot_turn(game, timer, difficulty):
+    # obtain bot move(s) according to difficulty
+    if difficulty == "easy":
+        bot_from_move = game.easy_bot_move()
+        bot_to_move = game.easyBot_to()
+
+    if difficulty == "medium":
+        bot_from_move = game.medBot_from()
+        bot_to_move = game.medBot_to()
+
+    if difficulty == "hard":
+        bot_from_move = game.hardBot_from()
+        bot_to_move = game.hardBot_to()
+
+
+    # if bot_from_move returned a (from,to) tuple, unpack it
+    if isinstance(bot_from_move, tuple):
+        from_piece, to_piece = bot_from_move
+    else:
+        from_piece = bot_from_move
+        to_piece = bot_to_move
+
+    # validate we have both squares
+    if not from_piece or not to_piece:
+        timer.stop_turn()
+        print("Bot has no legal moves.")
+        return None, False
+
+    print(f"Bot chooses {from_piece} to {to_piece}")
+    elapsed, timed_out = timer.stop_turn()
+
+    if timed_out:
+        return None, True
+
+    game.make_move(from_piece, to_piece)
+    return elapsed, False
+
+
+
 player1 = Player("Player 1 / white", 0)
 player2 = Player("Player 2 / black", 0)
+
+mode = get_game_mode()
+bot_difficulty = None
+if mode == "bot":
+    bot_difficulty = get_bot_difficulty()
+    bot_color = get_bot_color()
+    print(f"Bot difficulty set to {bot_difficulty} and will be playing as {bot_color}.")
+
+    if bot_color == "black":
+        player1 = Player("Player 1 / white", 0)
+        player2 = Player("Bot / black", 0)
+
+    elif bot_color == "white":
+        player1 = Player("bot / white", 0)
+        player2 = Player("player 1 / black", 0)        
 
 chess_game = Game(chess_board, player1, player2)
 
@@ -1069,57 +1250,36 @@ time_limit = get_time_limit_minutes()
 chess_timer = TestChessTimer(time_limit)
 
 
-chess_game = Game(chess_board, player1, player2)
-
-
 while True:
-
     current_color = chess_game.current_p
-    curr = chess_game.get_current_player()
 
-    if chess_game.is_checkmate(current_color):
-        print_board(chess_board)
-        print(f"CHECKMATE! {current_color.capitalize()} loses.")
+    # check for immediate game-over conditions before the next turn
+    if show_end_game(chess_game, current_color):
         break
 
-    if chess_game.is_stalemate(current_color):
-        print_board(chess_board)
-        print("STALEMATE! Draw.")
-        break
-
-    print_board(chess_board)
-
-    if chess_game.is_in_check(current_color):
-        print("CHECK! You are in check.")
-
-    print(f"player at turn: {curr.get_player_info()}")
-    print(f"captured pieces: {curr.get_captured_list()}")
-
+    # ensure the current player still has time left
     if not chess_timer.has_time(current_color):
         print(f"{current_color.capitalize()} ran out of time. Game over.")
         break
 
     chess_timer.start_turn(current_color)
-    from_piece = chess_timer.timed_input("what piece do you want to move?: ")
-    from_piece = chess_game.validate_from(from_piece, input_func=chess_timer.timed_input)
+    print_turn_header(chess_game)
 
-    to_piece = chess_timer.timed_input("where should the piece go?: ")
-    to_piece = chess_game.validate_to(to_piece, input_func=chess_timer.timed_input)
-    elapsed, timed_out = chess_timer.stop_turn()
+    # select human or bot move based on current mode and player
+    if mode == "bot" and current_color == bot_color:
+        elapsed, timed_out = perform_bot_turn(chess_game, chess_timer, bot_difficulty)
+    else:
+        elapsed, timed_out = perform_human_turn(chess_game, chess_timer)
 
+    # stop if the move failed due to timeout
     if timed_out:
         print(f"{current_color.capitalize()} ran out of time! Move not completed.")
         break
 
-    chess_game.make_move(from_piece, to_piece)
     print(f"Move time: {elapsed} seconds | Remaining: {format_time(chess_timer.get_remaining(current_color))}")
 
-    enemy = chess_game.current_p
+    next_color = chess_game.current_p
 
-    if chess_game.is_checkmate(enemy):
-        print(f"CHECKMATE! {enemy} loses.")
-        break
-
-    if chess_game.is_stalemate(enemy):
-        print("STALEMATE! Draw.")
+    # check for game-over conditions after the move
+    if show_end_game(chess_game, next_color):
         break

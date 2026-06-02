@@ -53,6 +53,9 @@ practice/
 - Pawn promotion
 - Chess clock / timer system
 
+- Player vs AI mode
+- Easy AI (random move selection)
+
 ---
 
 # Practice / Development Work
@@ -73,8 +76,6 @@ This is used to test features before integrating them into the main engine.
 - Save / load game state
 
 ## AI System
-- Player vs AI mode
-- Easy AI (random move selection)
 - Medium AI (material-based evaluation)
 - Hard AI (minimax search algorithm)
 - Alpha-beta pruning optimization
