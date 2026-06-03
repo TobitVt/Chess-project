@@ -1,15 +1,153 @@
 import threading
 import time
 import random
+import sqlite3
+import json
 
 # todo 
-# log in/ sign up
-# DB for user log in/sign up 
-# DB for saving game state when playing against bot
-# game end
+# prompt save/load game for bot games
+# code menu logic in main game loop
+# get elo logic
+# optional : game end(50 move rule, dead position, threefold repetition)
 # medium and hard bot to play against
 # GUI
 # done.
+
+############### DATABASE ###############################################
+DB_NAME = "chess_game.db"
+
+def connect():
+    return sqlite3.connect(DB_NAME)
+
+def create_tables():
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS players (
+        player_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        elo INTEGER DEFAULT 0,
+        wins INTEGER DEFAULT 0,
+        losses INTEGER DEFAULT 0,
+        draws INTEGER DEFAULT 0
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS saved_games (
+        save_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        player_id INTEGER NOT NULL,
+        board_state TEXT NOT NULL,
+        current_turn TEXT NOT NULL,
+        bot_difficulty TEXT,
+        game_mode TEXT NOT NULL,
+        saved_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (player_id) REFERENCES players(player_id)
+    )
+    """)
+
+    conn.commit()
+    conn.close()
+
+def create_player(u_name, p_word):
+    conn = connect()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""INSERT INTO players (username, password) values (?, ?)""", (u_name, p_word))
+        conn.commit()
+        player_id = cursor.lastrowid
+
+    except sqlite3.IntegrityError:
+        conn.close()
+        return None
+    
+    conn.close()
+    return player_id
+
+
+def get_player(u_name):
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT player_id, username, password, elo, wins, losses, draws
+        FROM players
+        WHERE username = ?
+        """, (u_name,))
+
+    player = cursor.fetchone()
+
+    conn.close()
+    return player
+
+
+def save_game(player_id, board, current_turn, bot_difficulty, game_mode):
+    conn = connect()
+    cursor = conn.cursor()
+
+    board_state = json.dumps(board)
+
+    cursor.execute("""
+    INSERT INTO saved_games (
+        player_id,
+        board_state,
+        current_turn,
+        bot_difficulty,
+        game_mode
+    )
+    VALUES (?, ?, ?, ?, ?)
+    """, (player_id, board_state, current_turn, bot_difficulty, game_mode))
+
+    conn.commit()
+    save_id = cursor.lastrowid
+
+    conn.close()
+    return save_id
+
+def get_all_saved_games(player_id):
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT save_id, current_turn, bot_difficulty, game_mode, saved_at
+    FROM saved_games
+    WHERE player_id = ?
+    ORDER BY saved_at DESC
+    """, (player_id,))
+
+    saves = cursor.fetchall()
+
+    conn.close()
+    return saves
+
+def load_saved_game(save_id):
+    conn = connect()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT board_state, current_turn, bot_difficulty, game_mode
+    FROM saved_games
+    WHERE save_id = ?
+    """, (save_id,))
+
+    save = cursor.fetchone()
+    conn.close()
+
+    if save is None:
+        return None
+
+    board_state, current_turn, bot_difficulty, game_mode = save
+
+    board = json.loads(board_state)
+
+    return {
+        "board": board,
+        "current_turn": current_turn,
+        "bot_difficulty": bot_difficulty,
+        "game_mode": game_mode
+    }
 
 
 ###############  board representation ##################################
@@ -1104,11 +1242,6 @@ class Game:
         pass
 
 
-
-  
-
- 
-
 ###############  game code: ####################################################
 
 def get_time_limit_minutes():
@@ -1153,6 +1286,7 @@ def print_turn_header(game):
     current_color = game.current_p
     if game.is_in_check(current_color):
         print("CHECK! You are in check.")
+        
     print_board(game.board)
     current_player = game.get_current_player()
     print(f"player at turn: {current_player.get_player_info()}")
@@ -1225,9 +1359,133 @@ def perform_bot_turn(game, timer, difficulty):
     return elapsed, False
 
 
+def print_menu(game_mode):
 
-player1 = Player("Player 1 / white", 0)
-player2 = Player("Player 2 / black", 0)
+    if game_mode == "bot":
+        menu = "" \
+        "quit - quit without saving" \
+        "save - quit and save game"
+
+
+
+    elif game_mode == "player":
+        menu = "" \
+        "resign - quit game" \
+        "draw - proposes draw to other player"
+
+
+    else:
+        menu = ""
+
+    return menu
+
+def log_in_prompt():
+    u_name = input("welcome back! please enter your username: ")
+    p_word = input("please enter your password: ")
+
+    return u_name, p_word
+
+def sign_up_prompt():
+    u_name = input("welcome to the chess app. Please enter your name/username: ")
+    p_word1 = input("please set a password: ")
+    p_word2 = input("please confirm password: ")
+
+    while p_word1 != p_word2:
+        print("passwords did not match")
+        p_word1 = input("please set a password: ")
+        p_word2 = input("please confirm password: ")
+
+    return u_name, p_word1
+
+create_tables()
+
+# log in/ sign up
+print("Welcome to chess!\n")
+choice = input("\nlog - log in \n sign - sign up \n guest - continue as guest\n").strip().lower()
+player_name = ""
+player_elo = 0
+
+while True:
+    if choice == "log":
+        # if db log in matches:
+        # continue to game
+        # set user name
+
+        # if not:
+        # prompt inputs again
+        # suggest sign up
+        user, passw = log_in_prompt()
+        user_info = get_player(user)
+
+        while user_info is None:
+            print("\nuser not found in database, please try again:")
+            user, passw = log_in_prompt()
+            user_info = get_player(user)
+
+            if user_info is None:
+                s = input("\ncontinue to sign up instead? (Y/N): ")
+                if s.strip().upper() == "Y":
+                    choice = "sign"
+                    break
+
+        if choice == "sign":
+            continue
+
+        # user found in DB
+        while passw != user_info[2]:
+            passw = input("password incorrect, please try again: ")
+
+        print("log in successful, welcome back.")
+        player_name = user_info[1]
+        player_elo = user_info[3]
+        break
+        
+
+
+    if choice == "sign":
+        
+        # if db account create succesful:
+        # continue to game
+        # create db entry and set user name
+
+        # if account already exists:
+        # prompt sign up again
+        # suggest login
+
+        user, passw = sign_up_prompt()
+        new_id = create_player(user, passw)
+
+        while new_id is None:
+            print("\nplayer already exists, please try again")
+            l = input("continue to sign up instead? (Y/N): ")
+            if l.strip().upper() == "N":
+                choice = "log"
+                break
+
+            user, passw = sign_up_prompt()
+            new_id = create_player(user, passw)
+
+        if choice == "log":
+            continue
+
+        print("sign up successful, welcome.")
+        player_name = user
+        break
+
+
+    if choice == "guest":
+        # go straight into being prompted to play against player or bot
+        player_name = "guest"
+        print("welcome to the chess app, enjoy and good luck.")
+        break
+
+    if choice not in {"log", "sign", "guest"}:
+        print("Invalid option. Please choose log, sign, or guest.")
+        choice = input("\nlog - log in \n sign - sign up \n guest - continue as guest\n").strip().lower()
+        continue
+
+
+print(f"welcome {player_name}")
 
 mode = get_game_mode()
 bot_difficulty = None
@@ -1237,12 +1495,16 @@ if mode == "bot":
     print(f"Bot difficulty set to {bot_difficulty} and will be playing as {bot_color}.")
 
     if bot_color == "black":
-        player1 = Player("Player 1 / white", 0)
+        player1 = Player(f"{player_name} / white", player_elo)
         player2 = Player("Bot / black", 0)
 
     elif bot_color == "white":
         player1 = Player("bot / white", 0)
-        player2 = Player("player 1 / black", 0)        
+        player2 = Player(f"{player_name} / black", player_elo)   
+
+else:
+    player1 = Player(f"{player_name} white", player_elo)
+    player2 = Player("Player 2 / black", 0)     
 
 chess_game = Game(chess_board, player1, player2)
 
@@ -1264,6 +1526,16 @@ while True:
 
     chess_timer.start_turn(current_color)
     print_turn_header(chess_game)
+
+    menu = input(print_menu(mode))\
+    
+    # draw/quit, save/quit
+
+    if mode == "bot":
+        pass
+    
+    elif mode == "player":
+        pass
 
     # select human or bot move based on current mode and player
     if mode == "bot" and current_color == bot_color:
