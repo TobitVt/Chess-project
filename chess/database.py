@@ -1,5 +1,6 @@
 import sqlite3
 import json
+import hashlib
 
 DB_NAME = "chess_game.db"
 
@@ -29,7 +30,9 @@ def create_tables():
         board_state TEXT NOT NULL,
         current_turn TEXT NOT NULL,
         bot_difficulty TEXT,
-        game_mode TEXT NOT NULL,
+        bot_color TEXT,
+        time_limit_seconds INTEGER,
+        player_time_left INTEGER,
         saved_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (player_id) REFERENCES players(player_id)
     )
@@ -37,6 +40,7 @@ def create_tables():
 
     conn.commit()
     conn.close()
+
 
 def create_player(u_name, p_word):
     conn = connect()
@@ -70,7 +74,7 @@ def get_player(u_name):
     return player
 
 
-def save_game(player_id, board, current_turn, bot_difficulty, game_mode):
+def save_game(player_id, board, current_turn, bot_difficulty, bot_color=None, time_limit_seconds=None, player_time_left=None):
     conn = connect()
     cursor = conn.cursor()
 
@@ -82,10 +86,12 @@ def save_game(player_id, board, current_turn, bot_difficulty, game_mode):
         board_state,
         current_turn,
         bot_difficulty,
-        game_mode
+        bot_color,
+        time_limit_seconds,
+        player_time_left
     )
-    VALUES (?, ?, ?, ?, ?)
-    """, (player_id, board_state, current_turn, bot_difficulty, game_mode))
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (player_id, board_state, current_turn, bot_difficulty, bot_color, time_limit_seconds, player_time_left))
 
     conn.commit()
     save_id = cursor.lastrowid
@@ -98,7 +104,7 @@ def get_all_saved_games(player_id):
     cursor = conn.cursor()
 
     cursor.execute("""
-    SELECT save_id, current_turn, bot_difficulty, game_mode, saved_at
+    SELECT save_id, current_turn, bot_difficulty, saved_at
     FROM saved_games
     WHERE player_id = ?
     ORDER BY saved_at DESC
@@ -114,7 +120,7 @@ def load_saved_game(save_id):
     cursor = conn.cursor()
 
     cursor.execute("""
-    SELECT board_state, current_turn, bot_difficulty, game_mode
+    SELECT board_state, current_turn, bot_difficulty, bot_color, time_limit_seconds, player_time_left
     FROM saved_games
     WHERE save_id = ?
     """, (save_id,))
@@ -125,7 +131,7 @@ def load_saved_game(save_id):
     if save is None:
         return None
 
-    board_state, current_turn, bot_difficulty, game_mode = save
+    board_state, current_turn, bot_difficulty, bot_color, time_limit_seconds, player_time_left = save
 
     board = json.loads(board_state)
 
@@ -133,8 +139,14 @@ def load_saved_game(save_id):
         "board": board,
         "current_turn": current_turn,
         "bot_difficulty": bot_difficulty,
-        "game_mode": game_mode
+        "bot_color": bot_color,
+        "time_limit_seconds": time_limit_seconds,
+        "player_time_left": player_time_left,
     }
+
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
 
 # create_tables()
 # print("Database and tables created successfully.")

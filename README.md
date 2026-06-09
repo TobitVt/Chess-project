@@ -55,6 +55,7 @@ practice/
 
 - Player vs AI mode
 - Easy AI (random move selection)
+- Save / load game state for bot games
 
 ---
 
@@ -63,7 +64,6 @@ practice/
 The `practice/` folder contains:
 - Early-stage full game prototype
 - Feature testing environment
-- Timer experimentation (in progress)
 - Refactoring and design exploration
 
 This is used to test features before integrating them into the main engine.
@@ -71,9 +71,6 @@ This is used to test features before integrating them into the main engine.
 ---
 
 # Planned Features
-
-## Game Features
-- Save / load game state
 
 ## AI System
 - Medium AI (material-based evaluation)
@@ -95,6 +92,7 @@ This is used to test features before integrating them into the main engine.
 - Git version control
 - GitHub for remote repository management
 - Visual Studio Code
+- SQLite 3
 
 ---
 
@@ -134,8 +132,6 @@ This project is being built incrementally, focusing on:
 # Current Status
 
 The project is in active development.
-
-Core movement logic and board representation are complete. The next phases include rule completion (check/checkmate) and AI integration.
 
 ---
 

@@ -40,20 +40,20 @@ def get_bot_difficulty():
             return difficulty
         print("Please enter 'easy', 'medium', or 'hard'.")
 
-
 def get_bot_color():
-    prompt = "Select bot color (black/white): "
+    prompt = "select the color the bot should play as(black/white): "
     while True:
         color = input(prompt).strip().lower()
         if color in ("black", "white"):
             return color
-        print("Please enter 'black' or 'white'.")
+        print("please select either black or white.")
 
 
 def print_turn_header(game):
     current_color = game.current_p
     if game.is_in_check(current_color):
         print("CHECK! You are in check.")
+        
     print_board(game.board)
     current_player = game.get_current_player()
     print(f"player at turn: {current_player.get_player_info()}")
@@ -63,15 +63,16 @@ def print_turn_header(game):
 def show_end_game(game, player_color):
     if game.is_checkmate(player_color):
         print_board(game.board)
+        winner_color = "black" if player_color == "white" else "white"
         print(f"CHECKMATE! {player_color.capitalize()} loses.")
-        return True
+        return {"outcome": "checkmate", "winner": winner_color}
 
     if game.is_stalemate(player_color):
         print_board(game.board)
         print("STALEMATE! Draw.")
-        return True
+        return {"outcome": "draw"}
 
-    return False
+    return None
 
 
 def perform_human_turn(game, timer):
@@ -86,8 +87,6 @@ def perform_human_turn(game, timer):
 
     game.make_move(from_piece, to_piece)
     return elapsed, False
-
-
 
 
 def perform_bot_turn(game, timer, difficulty):
@@ -128,26 +127,6 @@ def perform_bot_turn(game, timer, difficulty):
     return elapsed, False
 
 
-def print_menu(game_mode):
-
-    if game_mode == "bot":
-        menu = "" \
-        "quit - quit without saving" \
-        "save - quit and save game"
-
-
-
-    elif game_mode == "player":
-        menu = "" \
-        "resign - quit game" \
-        "draw - proposes draw to other player"
-
-
-    else:
-        menu = ""
-
-    return menu
-
 def log_in_prompt():
     u_name = input("welcome back! please enter your username: ")
     p_word = input("please enter your password: ")
@@ -173,6 +152,7 @@ print("Welcome to chess!\n")
 choice = input("\nlog - log in \n sign - sign up \n guest - continue as guest\n").strip().lower()
 player_name = ""
 player_elo = 0
+user_info = None
 
 while True:
     if choice == "log":
@@ -184,11 +164,17 @@ while True:
         # prompt inputs again
         # suggest sign up
         user, passw = log_in_prompt()
+        entered_password_hash = hash_password(passw)
+
         user_info = get_player(user)
+
+        stored_hashed_passw = user_info[2]
 
         while user_info is None:
             print("\nuser not found in database, please try again:")
             user, passw = log_in_prompt()
+            entered_password_hash = hash_password(passw)
+
             user_info = get_player(user)
 
             if user_info is None:
@@ -200,9 +186,10 @@ while True:
         if choice == "sign":
             continue
 
-        # user found in DB
-        while passw != user_info[2]:
+        # user found in DB, check password
+        while entered_password_hash != stored_hashed_passw:
             passw = input("password incorrect, please try again: ")
+            entered_password_hash = hash_password(passw)
 
         print("log in successful, welcome back.")
         player_name = user_info[1]
@@ -222,7 +209,9 @@ while True:
         # suggest login
 
         user, passw = sign_up_prompt()
-        new_id = create_player(user, passw)
+        hashed_password = hash_password(passw)
+
+        new_id = create_player(user, hashed_password)
 
         while new_id is None:
             print("\nplayer already exists, please try again")
@@ -232,7 +221,8 @@ while True:
                 break
 
             user, passw = sign_up_prompt()
-            new_id = create_player(user, passw)
+            hashed_password = hash_password(passw)
+            new_id = create_player(user, hashed_password)
 
         if choice == "log":
             continue
@@ -258,59 +248,190 @@ print(f"welcome {player_name}")
 
 mode = get_game_mode()
 bot_difficulty = None
+bot_color = None
+load_turn = None
+loaded_game = None
+
+# chosen to play against bot, can have saved game
+human_player = None
+human_player_id = None
+
 if mode == "bot":
-    bot_difficulty = get_bot_difficulty()
-    bot_color = get_bot_color()
-    print(f"Bot difficulty set to {bot_difficulty} and will be playing as {bot_color}.")
+    # prompt to load game or start a new game
+    new_load = "new"
 
-    if bot_color == "black":
-        player1 = Player(f"{player_name} / white", player_elo)
-        player2 = Player("Bot / black", 0)
+    # guests will not have saved games, skip choice to load game
+    if player_name != "guest":
+        new_load = input("Play new game(new) or load existing(load)?: ").strip().lower()
 
-    elif bot_color == "white":
-        player1 = Player("bot / white", 0)
-        player2 = Player(f"{player_name} / black", player_elo)   
+        while new_load not in {"new", "load"}:
+            print("Invalid option. Please choose a valid option.")
+            new_load = input("Play new game(new) or load existing(load)?: ").strip().lower()
 
+    if new_load == "load" and player_name != "guest":
+        saved_games = get_all_saved_games(user_info[0])
+
+        if saved_games:
+            print("Saved bot games:")
+            for index, save in enumerate(saved_games, start=1):
+                loaded = load_saved_game(save[0])
+                print(f"{index}. {save[3]} | turn: {loaded['current_turn']} | difficulty: {loaded['bot_difficulty']}")
+
+            num_games = len(saved_games)
+            while True:
+                try:
+                    game_choice = int(input(f"What game do you want to load? (1 - {num_games}): ").strip())
+                    if 1 <= game_choice <= num_games:
+                        break
+                except ValueError:
+                    game_choice = None
+
+                print("Please enter a valid number.")
+
+            save_id = saved_games[game_choice - 1][0]
+            loaded_game = load_saved_game(save_id)
+            chess_board = loaded_game["board"]
+            load_turn = loaded_game["current_turn"]
+            bot_difficulty = loaded_game["bot_difficulty"]
+            bot_color = loaded_game.get("bot_color")
+
+        else:
+            print("No saved games found, starting new game.")
+            new_load = "new"
+
+    if new_load == "new" or player_name == "guest":
+        bot_difficulty = get_bot_difficulty()
+        bot_color = get_bot_color()
+        print(f"Bot difficulty set to {bot_difficulty} and will be playing as {bot_color}.")
+
+        if bot_color == "black":
+            player1 = Player(f"{player_name} / white", get_starting_elo(player_elo))
+            player2 = Player("Bot / black", DEFAULT_ELO)
+
+        elif bot_color == "white":
+            player1 = Player("Bot / white", DEFAULT_ELO)
+            player2 = Player(f"{player_name} / black", get_starting_elo(player_elo))
+
+    else:
+        if bot_color == "black":
+            player1 = Player(f"{player_name} / white", get_starting_elo(player_elo))
+            player2 = Player("Bot / black", DEFAULT_ELO)
+        else:
+            player1 = Player("Bot / white", DEFAULT_ELO)
+            player2 = Player(f"{player_name} / black", get_starting_elo(player_elo))
+
+
+# player chooses to play against another player, no saved game logic needed
 else:
-    player1 = Player(f"{player_name} white", player_elo)
-    player2 = Player("Player 2 / black", 0)     
+    player1 = Player(f"{player_name} white", get_starting_elo(player_elo))
+    player2 = Player("Player 2 / black", DEFAULT_ELO)
+
+
 
 chess_game = Game(chess_board, player1, player2)
+if load_turn is not None:
+    chess_game.current_p = load_turn
 
-time_limit = get_time_limit_minutes()
-chess_timer = ChessTimer(time_limit)
+if player_name != "guest" and user_info is not None:
+    human_player = next((player for player in chess_game.players.values() if player_name in player.name), None)
+    human_player_id = user_info[0]
+
+time_limit = loaded_game.get("time_limit_seconds") if loaded_game else None
+if time_limit is None:
+    time_limit = get_time_limit_minutes()
+
+initial_time_left = loaded_game.get("player_time_left") if loaded_game else None
+chess_timer = ChessTimer(time_limit, initial_time_left=initial_time_left)
 
 
 while True:
     current_color = chess_game.current_p
 
     # check for immediate game-over conditions before the next turn
-    if show_end_game(chess_game, current_color):
+    end_state = show_end_game(chess_game, current_color)
+    if end_state is not None:
+        apply_game_result_elo(chess_game, end_state, human_player, human_player_id)
         break
 
     # ensure the current player still has time left
     if not chess_timer.has_time(current_color):
         print(f"{current_color.capitalize()} ran out of time. Game over.")
+        timeout_result = {"outcome": "timeout", "winner": "black" if current_color == "white" else "white"}
+        apply_game_result_elo(chess_game, timeout_result, human_player, human_player_id)
         break
 
     chess_timer.start_turn(current_color)
     print_turn_header(chess_game)
-
-    menu = input(print_menu(mode))\
-    
-    # draw/quit, save/quit
-
-    if mode == "bot":
-        pass
-    
-    elif mode == "player":
-        pass
 
     # select human or bot move based on current mode and player
     if mode == "bot" and current_color == bot_color:
         elapsed, timed_out = perform_bot_turn(chess_game, chess_timer, bot_difficulty)
     else:
         elapsed, timed_out = perform_human_turn(chess_game, chess_timer)
+
+
+
+
+    cont = input("continue?(Y/N): ").strip().upper()
+    while cont not in {"Y", "N"}:
+        print("Invalid option. Please choose a valid option.")
+        cont = input("save game?(Y/N): ").strip().upper()
+
+    if cont == "N":
+        if mode == "bot":
+            # guest cant save game, just exit game
+            if player_name == "guest":
+                print("goodbye!")
+                break
+
+            # prompt to save game
+            q_save = input("save game?(Y/N): ").strip().upper()
+            while q_save not in {"Y", "N"}:
+                print("Invalid option. Please choose a valid option.")
+                q_save = input("save game?(Y/N): ").strip().upper()
+
+            # stores current board and required info
+            if q_save == "Y":
+                save_id = save_game(
+                    player_id=user_info[0],
+                    board=chess_game.board,
+                    current_turn=chess_game.current_p,
+                    bot_difficulty=bot_difficulty,
+                    bot_color=bot_color,
+                    time_limit_seconds=time_limit,
+                    player_time_left=chess_timer.get_remaining(chess_game.current_p),
+                )
+                print(f"Game saved. Save ID: {save_id}, goodbye!")
+                break
+            else:
+                print("exiting without saving, goodbye!")
+                break
+        
+        elif mode == "player":
+            draw_offer = input("Offer a draw? (Y/N): ").strip().upper()
+            while draw_offer not in {"Y", "N"}:
+                print("Invalid option. Please choose a valid option.")
+                draw_offer = input("Offer a draw? (Y/N): ").strip().upper()
+
+            if draw_offer == "Y":
+                print("Draw accepted. No rating changes were made.")
+                break
+
+            resign = input("Resign and end the game? (Y/N): ").strip().upper()
+            while resign not in {"Y", "N"}:
+                print("Invalid option. Please choose a valid option.")
+                resign = input("Resign and end the game? (Y/N): ").strip().upper()
+
+            if resign == "Y":
+                if human_player is not None and human_player_id is not None:
+                    losing_color = chess_game.current_p
+                    winning_color = "black" if losing_color == "white" else "white"
+                    result = {"outcome": "resign", "winner": winning_color}
+                    apply_game_result_elo(chess_game, result, human_player, human_player_id)
+                print("You resigned. Game over.")
+                break
+
+            print("Continuing the game.")
 
     # stop if the move failed due to timeout
     if timed_out:
@@ -322,6 +443,7 @@ while True:
     next_color = chess_game.current_p
 
     # check for game-over conditions after the move
-    if show_end_game(chess_game, next_color):
+    end_state = show_end_game(chess_game, next_color)
+    if end_state is not None:
+        apply_game_result_elo(chess_game, end_state, human_player, human_player_id)
         break
-
