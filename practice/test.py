@@ -10,6 +10,12 @@ import hashlib
 # GUI
 # done.
 
+# game score should not be same as elo score 
+# elo - only updated after game
+# game score - updated after capture
+
+
+
 ############### DATABASE ###############################################
 DB_NAME = "chess_game.db"
 DEFAULT_ELO = 1200
@@ -1262,9 +1268,7 @@ class Game:
         self.switch_turn()
 
 
-    # easy level bot code test:
-
-    def easy_bot_move(self):
+    def get_bot_moves(self):
         bot_moves = []
 
         for r in range(8):
@@ -1282,41 +1286,80 @@ class Game:
                 # create the piece object
                 piece_object = create_piece_object(piece, self.current_p)
 
+                if piece_object is None:
+                    continue
+
                 # get legal moves for that piece
                 legal_moves = self.get_legal_moves(self.current_p, r, c, piece_object)
 
-                # store every legal move
-                for move in legal_moves:
-                    from_square = convert_to_chess_notation(r, c)
-                    to_square = convert_to_chess_notation(move[0], move[1])
+                for row2, col2 in legal_moves:
+                    bot_moves.append((r, c, row2, col2))
 
-                    bot_moves.append((from_square, to_square))
+        return bot_moves
 
-        if len(bot_moves) == 0:
+
+    def easyBot_move(self):
+        easy_moves = self.get_bot_moves()
+
+        if not easy_moves:
             return None
 
-        return random.choice(bot_moves)
+        random_move = random.choice(easy_moves)
 
+        r1, c1, r2, c2 = random_move
 
-    def easyBot_to(self):
-        if len(self.legal_moves) == 0:
-            return None
-        
-        row, col = random.choice(self.legal_moves)
-        return convert_to_chess_notation(row, col)
+        from_square = convert_to_chess_notation(r1, c1)
+        to_square = convert_to_chess_notation(r2, c2)
+
+        return from_square, to_square
     
 
-    def medBot_from(self):
+    def score_medium_move(self, r2, c2):
+        score = 0
+
+        target_piece = self.board[r2][c2].lower()
+
+        if target_piece != "-":
+            score += piece_values[target_piece]
+
+        return score
+    
+
+    def medBot_move(self):
+        med_moves = self.get_bot_moves()
+
+        if not med_moves:
+            return None
+        
+        scored_moves = []
+        curr_score = 0
+        best_moves = []
+
+        for move in med_moves:
+            r1, c1, r2, c2 = move
+            curr_score = self.score_medium_move(r2, c2)
+            scored_moves.append((curr_score, r1, c1, r2, c2))
+
+        highest = max(scored_moves, key=lambda move: move[0])
+
+        for move in scored_moves:
+            if move[0] == highest[0]:
+                best_moves.append(move) 
+
+        final = random.choice(best_moves)
+
+        score, row1, col1, row2, col2 = final
+
+        from_square = convert_to_chess_notation(row1, col1)
+        to_square = convert_to_chess_notation(row2, col2)
+
+        return from_square, to_square
+
+    
+
+    def hardBot_move(self):
         pass
 
-    def medBot_to(self):
-        pass
-
-    def hardBot_from(self):
-        pass
-
-    def hardBot_to(self):
-        pass
 
 
 ###############  game code: ####################################################
@@ -1402,16 +1445,13 @@ def perform_human_turn(game, timer):
 def perform_bot_turn(game, timer, difficulty):
     # obtain bot move(s) according to difficulty
     if difficulty == "easy":
-        bot_from_move = game.easy_bot_move()
-        bot_to_move = game.easyBot_to()
+        bot_from_move, bot_to_move = game.easyBot_move()
 
     if difficulty == "medium":
-        bot_from_move = game.medBot_from()
-        bot_to_move = game.medBot_to()
+        bot_from_move, bot_to_move  = game.medBot_move()
 
     if difficulty == "hard":
-        bot_from_move = game.hardBot_from()
-        bot_to_move = game.hardBot_to()
+        bot_from_move, bot_to_move = game.hardBot_move()
 
 
     # if bot_from_move returned a (from,to) tuple, unpack it
@@ -1679,8 +1719,20 @@ while True:
     else:
         elapsed, timed_out = perform_human_turn(chess_game, chess_timer)
 
+    # stop if the move failed due to timeout
+    if timed_out:
+        print(f"{current_color.capitalize()} ran out of time, Move not completed.")
+        break
 
+    print(f"Move time: {elapsed} seconds | Remaining: {format_time(chess_timer.get_remaining(current_color))}")
 
+    next_color = chess_game.current_p
+
+    # check for game-over conditions after the move
+    end_state = show_end_game(chess_game, next_color)
+    if end_state is not None:
+        apply_game_result_elo(chess_game, end_state, human_player, human_player_id)
+        break
 
     cont = input("continue?(Y/N): ").strip().upper()
     while cont not in {"Y", "N"}:
@@ -1742,18 +1794,3 @@ while True:
                 break
 
             print("Continuing the game.")
-
-    # stop if the move failed due to timeout
-    if timed_out:
-        print(f"{current_color.capitalize()} ran out of time, Move not completed.")
-        break
-
-    print(f"Move time: {elapsed} seconds | Remaining: {format_time(chess_timer.get_remaining(current_color))}")
-
-    next_color = chess_game.current_p
-
-    # check for game-over conditions after the move
-    end_state = show_end_game(chess_game, next_color)
-    if end_state is not None:
-        apply_game_result_elo(chess_game, end_state, human_player, human_player_id)
-        break
