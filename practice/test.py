@@ -6,8 +6,12 @@ import json
 import hashlib
 
 # todo 
-# medium and hard bot to play against
+# seperate elo and game score
+# fix easy bot
+# hard bot to play against
 # GUI
+# remove live countdown
+# add timer
 # done.
 
 # game score should not be same as elo score 
@@ -18,7 +22,7 @@ import hashlib
 
 ############### DATABASE ###############################################
 DB_NAME = "chess_game.db"
-DEFAULT_ELO = 1200
+DEFAULT_ELO = 100
 
 def connect():
     return sqlite3.connect(DB_NAME)
@@ -867,7 +871,7 @@ class Game:
         captured_piece = self.board[row2][col2]
         en_passant_info = None
 
-        if self.is_en_passant_move(moving_piece, row1, col1, row2, col2):
+        if self.is_en_passant_move(moving_piece, row2, col2):
             capture_row, capture_col = self.en_passant_capture_square
             captured_piece = self.board[capture_row][capture_col]
 
@@ -1176,7 +1180,7 @@ class Game:
 
         return castling_moves
     
-    def is_en_passant_move(self, moving_piece, row1, col1, row2, col2):
+    def is_en_passant_move(self, moving_piece, row2, col2):
         if moving_piece.lower() != "p":
             return False
 
@@ -1230,7 +1234,7 @@ class Game:
         
         moving_piece = self.board[row1][col1]
 
-        en_passant_move = self.is_en_passant_move(moving_piece, row1, col1, row2, col2)
+        en_passant_move = self.is_en_passant_move(moving_piece, row2, col2)
 
         if en_passant_move:
             capture_row, capture_col = self.en_passant_capture_square
@@ -1298,23 +1302,7 @@ class Game:
         return bot_moves
 
 
-    def easyBot_move(self):
-        easy_moves = self.get_bot_moves()
-
-        if not easy_moves:
-            return None
-
-        random_move = random.choice(easy_moves)
-
-        r1, c1, r2, c2 = random_move
-
-        from_square = convert_to_chess_notation(r1, c1)
-        to_square = convert_to_chess_notation(r2, c2)
-
-        return from_square, to_square
-    
-
-    def score_medium_move(self, r2, c2):
+    def score_easy_move(self, r2, c2):
         score = 0
 
         target_piece = self.board[r2][c2].lower()
@@ -1323,6 +1311,106 @@ class Game:
             score += piece_values[target_piece]
 
         return score
+    
+    def easyBot_move(self):
+        easy_moves = self.get_bot_moves()
+
+        if not easy_moves:
+            return None
+        
+        scored_moves = []
+        curr_score = 0
+        best_moves = []
+
+        for move in easy_moves:
+            r1, c1, r2, c2 = move
+            curr_score = self.score_easy_move(r2, c2)
+            scored_moves.append((curr_score, r1, c1, r2, c2))
+
+        highest = max(scored_moves, key=lambda move: move[0])
+
+        for move in scored_moves:
+            if move[0] == highest[0]:
+                best_moves.append(move) 
+
+        final = random.choice(best_moves)
+
+        score, row1, col1, row2, col2 = final
+
+        from_square = convert_to_chess_notation(row1, col1)
+        to_square = convert_to_chess_notation(row2, col2)
+
+        return from_square, to_square
+
+    # temp, find one already in program: 
+    def get_enemy_player(self, player):
+        if player == "white":
+            return "black" 
+        return "white"
+    
+
+    def score_med_move(self, r1, c1, r2, c2):
+        score = 0
+
+        center_squares = {(3, 3), (3, 4), (4, 3), (4, 4)}
+
+        moving_piece = self.board[r1][c1].lower()
+        target_piece = self.board[r2][c2].lower()
+
+        moving_score = piece_values[moving_piece]
+
+        if target_piece != "-":
+            target_score = piece_values[target_piece]
+
+            score += target_score * 10
+            score -= moving_score
+
+        # reward en passant
+        if self.is_en_passant_move(self.board[r1][c1], r2, c2):
+            score += piece_values["p"] * 10
+            score -= moving_score
+
+        # Rule: reward center control
+        if (r2, c2) in center_squares:
+            score += 2
+
+        # reward pawn promotion
+        if moving_piece == "p":
+            if self.current_p == "white" and r2 == 0:
+                score += 90
+            elif self.current_p == "black" and r2 == 7:
+                score += 90
+
+        # reward castling
+        if moving_piece == "k" and r1 == r2 and abs(c2 - c1) == 2:
+            score += 8
+
+        # reward developing knights and bishops
+        if moving_piece in ["n", "b"]:
+            if self.current_p == "white" and r1 == 7:
+                score += 3
+            elif self.current_p == "black" and r1 == 0:
+                score += 3
+
+        # simulate move
+        move_info = self.simulate_move(r1, c1, r2, c2)
+        enemy = self.get_enemy_player(self.current_p)
+
+        # punish move that creates danger
+        if self.is_square_attacked(r2, c2, enemy):
+            score -= moving_score * 3
+
+        # reward check/checkmate
+        if self.is_checkmate(enemy):
+            score += 1000
+
+        elif self.is_in_check(enemy):
+            score += 5
+
+        self.undo_move(r1, c1, r2, c2, move_info)
+
+        return score
+    
     
 
     def medBot_move(self):
@@ -1337,7 +1425,7 @@ class Game:
 
         for move in med_moves:
             r1, c1, r2, c2 = move
-            curr_score = self.score_medium_move(r2, c2)
+            curr_score = self.score_med_move(r1, c1, r2, c2)
             scored_moves.append((curr_score, r1, c1, r2, c2))
 
         highest = max(scored_moves, key=lambda move: move[0])
@@ -1734,63 +1822,63 @@ while True:
         apply_game_result_elo(chess_game, end_state, human_player, human_player_id)
         break
 
-    cont = input("continue?(Y/N): ").strip().upper()
-    while cont not in {"Y", "N"}:
-        print("Invalid option. Please choose a valid option.")
-        cont = input("save game?(Y/N): ").strip().upper()
+    # cont = input("continue?(Y/N): ").strip().upper()
+    # while cont not in {"Y", "N"}:
+    #     print("Invalid option. Please choose a valid option.")
+    #     cont = input("save game?(Y/N): ").strip().upper()
 
-    if cont == "N":
-        if mode == "bot":
-            # guest cant save game, just exit game
-            if player_name == "guest":
-                print("goodbye!")
-                break
+    # if cont == "N":
+    #     if mode == "bot":
+    #         # guest cant save game, just exit game
+    #         if player_name == "guest":
+    #             print("goodbye!")
+    #             break
 
-            # prompt to save game
-            q_save = input("save game?(Y/N): ").strip().upper()
-            while q_save not in {"Y", "N"}:
-                print("Invalid option. Please choose a valid option.")
-                q_save = input("save game?(Y/N): ").strip().upper()
+    #         # prompt to save game
+    #         q_save = input("save game?(Y/N): ").strip().upper()
+    #         while q_save not in {"Y", "N"}:
+    #             print("Invalid option. Please choose a valid option.")
+    #             q_save = input("save game?(Y/N): ").strip().upper()
 
-            # stores current board and required info
-            if q_save == "Y":
-                save_id = save_game(
-                    player_id=user_info[0],
-                    board=chess_game.board,
-                    current_turn=chess_game.current_p,
-                    bot_difficulty=bot_difficulty,
-                    bot_color=bot_color,
-                    time_limit_seconds=time_limit,
-                    player_time_left=chess_timer.get_remaining(chess_game.current_p),
-                )
-                print(f"Game saved. Save ID: {save_id}, goodbye!")
-                break
-            else:
-                print("exiting without saving, goodbye!")
-                break
+    #         # stores current board and required info
+    #         if q_save == "Y":
+    #             save_id = save_game(
+    #                 player_id=user_info[0],
+    #                 board=chess_game.board,
+    #                 current_turn=chess_game.current_p,
+    #                 bot_difficulty=bot_difficulty,
+    #                 bot_color=bot_color,
+    #                 time_limit_seconds=time_limit,
+    #                 player_time_left=chess_timer.get_remaining(chess_game.current_p),
+    #             )
+    #             print(f"Game saved. Save ID: {save_id}, goodbye!")
+    #             break
+    #         else:
+    #             print("exiting without saving, goodbye!")
+    #             break
         
-        elif mode == "player":
-            draw_offer = input("Offer a draw? (Y/N): ").strip().upper()
-            while draw_offer not in {"Y", "N"}:
-                print("Invalid option. Please choose a valid option.")
-                draw_offer = input("Offer a draw? (Y/N): ").strip().upper()
+    #     elif mode == "player":
+    #         draw_offer = input("Offer a draw? (Y/N): ").strip().upper()
+    #         while draw_offer not in {"Y", "N"}:
+    #             print("Invalid option. Please choose a valid option.")
+    #             draw_offer = input("Offer a draw? (Y/N): ").strip().upper()
 
-            if draw_offer == "Y":
-                print("Draw accepted. No rating changes were made.")
-                break
+    #         if draw_offer == "Y":
+    #             print("Draw accepted. No rating changes were made.")
+    #             break
 
-            resign = input("Resign and end the game? (Y/N): ").strip().upper()
-            while resign not in {"Y", "N"}:
-                print("Invalid option. Please choose a valid option.")
-                resign = input("Resign and end the game? (Y/N): ").strip().upper()
+    #         resign = input("Resign and end the game? (Y/N): ").strip().upper()
+    #         while resign not in {"Y", "N"}:
+    #             print("Invalid option. Please choose a valid option.")
+    #             resign = input("Resign and end the game? (Y/N): ").strip().upper()
 
-            if resign == "Y":
-                if human_player is not None and human_player_id is not None:
-                    losing_color = chess_game.current_p
-                    winning_color = "black" if losing_color == "white" else "white"
-                    result = {"outcome": "resign", "winner": winning_color}
-                    apply_game_result_elo(chess_game, result, human_player, human_player_id)
-                print("You resigned. Game over.")
-                break
+    #         if resign == "Y":
+    #             if human_player is not None and human_player_id is not None:
+    #                 losing_color = chess_game.current_p
+    #                 winning_color = "black" if losing_color == "white" else "white"
+    #                 result = {"outcome": "resign", "winner": winning_color}
+    #                 apply_game_result_elo(chess_game, result, human_player, human_player_id)
+    #             print("You resigned. Game over.")
+    #             break
 
-            print("Continuing the game.")
+    #         print("Continuing the game.")
