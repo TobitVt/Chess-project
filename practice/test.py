@@ -1271,9 +1271,8 @@ class Game:
         print(f"{self.current_p} moves from {from_pos} to {to_pos}")
         self.switch_turn()
 
-
-    def get_bot_moves(self):
-        bot_moves = []
+    def get_moves_for_player(self, player):
+        moves = []
 
         for r in range(8):
             for c in range(8):
@@ -1282,24 +1281,27 @@ class Game:
                 # skip empty squares
                 if piece == "-":
                     continue
-
+                    
                 # skip opponent pieces
-                if not validate_player_move(self.current_p, piece):
+                if not validate_player_move(player, piece):
                     continue
 
                 # create the piece object
-                piece_object = create_piece_object(piece, self.current_p)
+                piece_obj = create_piece_object(piece, player)
 
-                if piece_object is None:
+                if not piece_obj:
                     continue
-
+                    
                 # get legal moves for that piece
-                legal_moves = self.get_legal_moves(self.current_p, r, c, piece_object)
+                opp_legal_moves = self.get_legal_moves(player, r, c, piece_obj)
 
-                for row2, col2 in legal_moves:
-                    bot_moves.append((r, c, row2, col2))
+                for row2, col2 in opp_legal_moves:
+                    moves.append((r, c, row2, col2))
 
-        return bot_moves
+        return moves
+
+    def get_bot_moves(self):
+        return self.get_moves_for_player(self.current_p)
 
 
     def score_easy_move(self, r2, c2):
@@ -1318,6 +1320,9 @@ class Game:
         if not easy_moves:
             return None
         
+        pawn_moves = []
+        non_pawn_moves = []
+        
         scored_moves = []
         curr_score = 0
         best_moves = []
@@ -1325,15 +1330,26 @@ class Game:
         for move in easy_moves:
             r1, c1, r2, c2 = move
             curr_score = self.score_easy_move(r2, c2)
-            scored_moves.append((curr_score, r1, c1, r2, c2))
 
-        highest = max(scored_moves, key=lambda move: move[0])
+            scored_move = (curr_score, r1, c1, r2, c2)
+            scored_moves.append(scored_move)
 
-        for move in scored_moves:
-            if move[0] == highest[0]:
-                best_moves.append(move) 
+            moving_piece = self.board[r1][c1].lower()
 
-        final = random.choice(best_moves)
+            if moving_piece == "p":
+                pawn_moves.append(scored_move)
+            else:
+                non_pawn_moves.append(scored_move)
+
+            
+
+        if non_pawn_moves and random.random() < 0.35:
+            move_pool = non_pawn_moves
+        else:
+            scored_moves.sort(key=lambda move: move[0], reverse=True)
+            move_pool = scored_moves[:8]
+
+        final = random.choice(move_pool)
 
         score, row1, col1, row2, col2 = final
 
@@ -1442,12 +1458,184 @@ class Game:
         to_square = convert_to_chess_notation(row2, col2)
 
         return from_square, to_square
+    
+    def evaluate_board(self, bot_player):
+        score = 0
+
+        for row in self.board:
+            for piece in row:
+                if piece == "-":
+                    continue
+
+                value = piece_values[piece.lower()]
+
+                if bot_player == "white":
+                    if piece.isupper():
+                        score += value
+                    else:
+                        score -= value
+
+                else:
+                    if piece.islower():
+                        score += value
+                    else:
+                        score -= value
+
+        return score
+    
+    def order_moves(self, player, moves):
+        ordered_candidates = []
+
+        for m in moves:
+            ordering_score = 0
+            r1, c1, r2, c2 = m
+            mov = self.board[r1][c1].lower()
+            targ = self.board[r2][c2].lower()
+
+
+            if targ != "-":
+                targ_val = piece_values[targ]
+
+                ordering_score += targ_val * 10
+            
+            # reward pawn promotion
+            if mov == "p":
+                if player == "white" and r2 == 0:
+                    ordering_score += 90
+                elif player == "black" and r2 == 7:
+                    ordering_score += 90
+
+            # reward castling
+            if mov == "k" and r1 == r2 and abs(c2 - c1) == 2:
+                ordering_score += 8
+
+            # reward developing knights and bishops
+            if mov in ["n", "b"]:
+                if player == "white" and r1 == 7:
+                    ordering_score += 3
+                elif player == "black" and r1 == 0:
+                    ordering_score += 3
+
+            ordered_candidates.append((ordering_score, m))
+        
+        highest_first = sorted(ordered_candidates, key=lambda item: item[0], reverse=True)
+
+        ordered_moves = [item[1] for item in highest_first]
+
+        return ordered_moves
 
     
+    def minimax(self, depth, player_to_move, bot, alpha, beta):
+        if depth == 0:
+            return self.evaluate_board(bot)
+        
+        moves = self.get_moves_for_player(player_to_move)
+        moves = self.order_moves(player_to_move, moves)
+
+        if len(moves) == 0:
+            if self.is_in_check(player_to_move):
+                if player_to_move == bot:
+                    return -99999
+                else:
+                    return 99999
+                
+            else:
+                return 0
+ 
+        
+
+        enemy = self.get_enemy_player(player_to_move)
+        
+        if player_to_move == bot:
+            best_score = -99999
+
+            for m in moves:
+                r1, c1, r2, c2 = m
+
+                sim_move = self.simulate_move(r1, c1, r2, c2)
+
+
+                score = self.minimax(depth - 1, enemy, bot, alpha, beta)
+
+                self.undo_move(r1, c1, r2, c2, sim_move)
+
+                if score > best_score:
+                    best_score = score
+
+                alpha = max(alpha, best_score)
+
+                if beta <= alpha:
+                    break
+            
+            return best_score
+        
+        else:
+            best_score = 99999
+
+            for m in moves:
+                r1, c1, r2, c2 = m
+                sim_move = self.simulate_move(r1, c1, r2, c2)
+
+
+                score = self.minimax(depth - 1, enemy, bot, alpha, beta)
+
+                self.undo_move(r1, c1, r2, c2, sim_move)
+
+                if score < best_score:
+                    best_score = score
+
+                beta = min(beta, best_score)
+
+                if beta <= alpha:
+                    break
+            
+            return best_score
+
 
     def hardBot_move(self):
-        pass
 
+        depth = 3
+        alpha = -99999
+        beta = 99999
+
+        bot = self.current_p
+        enemy = self.get_enemy_player(bot)
+
+        moves = self.get_moves_for_player(bot)
+        moves = self.order_moves(bot, moves)
+
+
+        if len(moves) == 0:
+            return None
+        
+        best_score = -99999
+        best_moves = []
+
+        for m in moves:
+            r1, c1, r2, c2 = m
+
+            sim_move = self.simulate_move(r1, c1, r2, c2)
+
+            score = self.minimax(depth - 1, enemy, bot, alpha, beta)
+
+            self.undo_move(r1, c1, r2, c2, sim_move)
+
+            if score > best_score:
+                best_score = score
+                best_moves = []
+                best_moves.append(m)
+
+            elif score == best_score:
+                best_moves.append(m)
+
+        final = random.choice(best_moves)
+
+        row1, col1, row2, col2 = final
+
+        from_square = convert_to_chess_notation(row1, col1)
+        to_square = convert_to_chess_notation(row2, col2)
+
+        return from_square, to_square
 
 
 ###############  game code: ####################################################
