@@ -6,11 +6,11 @@ import json
 import hashlib
 
 # todo 
-# seperate elo and game score
-# fix easy bot
-# hard bot to play against
-# GUI
 # remove live countdown
+# INTERFACE
+
+# seperate elo and game score, fixed?
+# fix transition between log in and sign up, fixed by interface.
 # add timer
 # done.
 
@@ -445,10 +445,10 @@ def is_valid(move):
 
 #################player representation exercise ###############################
 class Player:
-    def __init__(self, name, score = 0):
+    def __init__(self, name, elo = 100, score = 0):
         self.name = name
         self.score = score
-        self.elo = score
+        self.elo = elo
         self.captured_pieces = []
 
     def update_score(self, n):
@@ -456,7 +456,6 @@ class Player:
 
     def update_elo(self, new_elo):
         self.elo = new_elo
-        self.score = new_elo
 
     def capture_piece(self, piece):
         self.captured_pieces.append(piece)
@@ -1459,27 +1458,132 @@ class Game:
 
         return from_square, to_square
     
+    def simulate_search_move(self, r1, c1, r2, c2):
+        moving_piece = self.board[r1][c1]
+
+        move_info = self.simulate_move(r1, c1, r2, c2)
+
+        promoted = False
+
+        if moving_piece == "P" and r2 == 0:
+            self.board[r2][c2] = "Q"
+            promoted = True
+
+        elif moving_piece == "p" and r2 == 7:
+            self.board[r2][c2] = "q"
+            promoted = True
+
+        return move_info, promoted, moving_piece
+
+
+    def undo_search_move(self, r1, c1, r2, c2, search_info):
+        move_info, promoted, original_piece = search_info
+
+        if promoted:
+            self.board[r2][c2] = original_piece
+
+        self.undo_move(r1, c1, r2, c2, move_info)
+    
     def evaluate_board(self, bot_player):
         score = 0
+        center_squares = {(3, 3), (3, 4), (4, 3), (4, 4)}
+        white_castled_squares = {(7, 6),  (7, 2)}
+        black_castled_squares = {(0, 6),  (0, 2)}
 
-        for row in self.board:
-            for piece in row:
+
+        for r in range(8):
+            for c in range(8):
+                piece = self.board[r][c]
+
                 if piece == "-":
                     continue
 
-                value = piece_values[piece.lower()]
+                piece_type = piece.lower()
+                value = piece_values[piece_type]
 
                 if bot_player == "white":
-                    if piece.isupper():
-                        score += value
-                    else:
-                        score -= value
-
+                    is_bot_piece = piece.isupper()
                 else:
-                    if piece.islower():
-                        score += value
+                    is_bot_piece = piece.islower()
+
+                # Rule 1: material score
+                if is_bot_piece:
+                    score += value
+                else:
+                    score -= value
+
+                # Rule 2: reward center control
+                if (r, c) in center_squares:
+                    if is_bot_piece:
+                        score += 1
                     else:
-                        score -= value
+                        score -= 1
+
+                # Rule 3: reward developed knights and bishops
+                if piece_type in ["n", "b"]:
+                    developed = False
+
+                    # white knight/bishop developed if it left row 7
+                    if piece.isupper() and r != 7:
+                        developed = True
+
+                    # black knight/bishop developed if it left row 0
+                    elif piece.islower() and r != 0:
+                        developed = True
+
+                    if developed:
+                        if is_bot_piece:
+                            score += 1
+                        else:
+                            score -= 1
+
+                # Rule 4: reward castled king position
+                if piece_type == "k":
+                    castled = False
+
+                    if piece.isupper() and (r, c) in white_castled_squares:
+                        castled = True
+
+                    elif piece.islower() and (r, c) in black_castled_squares:
+                        castled = True
+
+                    if castled:
+                        if is_bot_piece:
+                            score += 2
+                        else:
+                            score -= 2
+
+                # Rule 5: pawn structure
+                if piece_type == "p":
+                    if self.is_passed_pawn(r, c, piece):
+                        if is_bot_piece:
+                            score += 2
+                        else:
+                            score -= 2
+
+                    if self.is_doubled_pawn(c, piece):
+                        if is_bot_piece:
+                            score -= 1
+                        else:
+                            score += 1
+
+        # Rule 6: mobility bonus
+        enemy = self.get_enemy_player(bot_player)
+
+        if self.is_in_check(enemy):
+            score += 3
+
+        if self.is_in_check(bot_player):
+            score -= 3
+
+        # mobility bonus
+        bot_moves = len(self.get_moves_for_player(bot_player))
+        enemy_moves = len(self.get_moves_for_player(enemy))
+
+        mobility_difference = bot_moves - enemy_moves
+
+        score += mobility_difference * 0.1
+
 
         return score
     
@@ -1523,11 +1627,74 @@ class Game:
         ordered_moves = [item[1] for item in highest_first]
 
         return ordered_moves
-
     
-    def minimax(self, depth, player_to_move, bot, alpha, beta):
+
+    def get_board_key(self):
+        return tuple(tuple(row) for row in self.board)
+    
+    def get_cache_key(self, depth, player_to_move, bot):
+        castling_state = (
+            self.king_moved["white"],
+            self.king_moved["black"],
+            self.rook_moved["white"]["kingside"],
+            self.rook_moved["white"]["queenside"],
+            self.rook_moved["black"]["kingside"],
+            self.rook_moved["black"]["queenside"]
+        )
+
+        return (self.get_board_key(), depth, player_to_move, bot, self.en_passant_target, castling_state)
+
+    def count_pieces(self):
+        count = 0
+        for r in range(8):
+            for c in range(8):
+                curr_piece = self.board[r][c]
+
+                if curr_piece != "-":
+                    count += 1
+
+        return count
+    
+    def is_doubled_pawn(self, col, pawn):
+        count = 0
+
+        for r in range(8):
+            if self.board[r][col] == pawn:
+                count += 1
+
+        return count > 1
+
+
+    def is_passed_pawn(self, row, col, pawn):
+        if pawn == "P":
+            enemy_pawn = "p"
+            rows_to_check = range(row - 1, -1, -1)
+
+        elif pawn == "p":
+            enemy_pawn = "P"
+            rows_to_check = range(row + 1, 8)
+
+        else:
+            return False
+
+        for r in rows_to_check:
+            for dc in [-1, 0, 1]:
+                check_col = col + dc
+
+                if 0 <= check_col < 8:
+                    if self.board[r][check_col] == enemy_pawn:
+                        return False
+
+        return True
+        
+    def minimax(self, depth, player_to_move, bot, alpha, beta, search_cache):
         if depth == 0:
             return self.evaluate_board(bot)
+        
+        cache_key = self.get_cache_key(depth, player_to_move, bot)
+
+        if cache_key in search_cache:
+            return search_cache[cache_key]
         
         moves = self.get_moves_for_player(player_to_move)
         moves = self.order_moves(player_to_move, moves)
@@ -1535,9 +1702,9 @@ class Game:
         if len(moves) == 0:
             if self.is_in_check(player_to_move):
                 if player_to_move == bot:
-                    return -99999
+                    return -99999 - depth
                 else:
-                    return 99999
+                    return 99999 + depth
                 
             else:
                 return 0
@@ -1547,17 +1714,19 @@ class Game:
         enemy = self.get_enemy_player(player_to_move)
         
         if player_to_move == bot:
+
             best_score = -99999
+            pruned = False
 
             for m in moves:
                 r1, c1, r2, c2 = m
 
-                sim_move = self.simulate_move(r1, c1, r2, c2)
+                sim_move = self.simulate_search_move(r1, c1, r2, c2)
 
 
-                score = self.minimax(depth - 1, enemy, bot, alpha, beta)
+                score = self.minimax(depth - 1, enemy, bot, alpha, beta, search_cache)
 
-                self.undo_move(r1, c1, r2, c2, sim_move)
+                self.undo_search_move(r1, c1, r2, c2, sim_move)
 
                 if score > best_score:
                     best_score = score
@@ -1565,21 +1734,26 @@ class Game:
                 alpha = max(alpha, best_score)
 
                 if beta <= alpha:
+                    pruned = True
                     break
             
+            if not pruned:
+                search_cache[cache_key] = best_score  
+
             return best_score
         
         else:
             best_score = 99999
+            pruned = False
 
             for m in moves:
                 r1, c1, r2, c2 = m
-                sim_move = self.simulate_move(r1, c1, r2, c2)
+                sim_move = self.simulate_search_move(r1, c1, r2, c2)
 
 
-                score = self.minimax(depth - 1, enemy, bot, alpha, beta)
+                score = self.minimax(depth - 1, enemy, bot, alpha, beta, search_cache)
 
-                self.undo_move(r1, c1, r2, c2, sim_move)
+                self.undo_search_move(r1, c1, r2, c2, sim_move)
 
                 if score < best_score:
                     best_score = score
@@ -1587,16 +1761,31 @@ class Game:
                 beta = min(beta, best_score)
 
                 if beta <= alpha:
+                    pruned = True
                     break
-            
+
+            if not pruned:
+                search_cache[cache_key] = best_score
+                
             return best_score
 
 
     def hardBot_move(self):
 
-        depth = 3
+        search_cache = {}
+        piece_count = self.count_pieces()
+
+        if piece_count > 24:
+            depth = 2
+        elif piece_count > 12:
+            depth = 3
+        else:
+            depth = 4
+
+
         alpha = -99999
         beta = 99999
+
 
         bot = self.current_p
         enemy = self.get_enemy_player(bot)
@@ -1614,16 +1803,15 @@ class Game:
         for m in moves:
             r1, c1, r2, c2 = m
 
-            sim_move = self.simulate_move(r1, c1, r2, c2)
+            sim_move = self.simulate_search_move(r1, c1, r2, c2)
 
-            score = self.minimax(depth - 1, enemy, bot, alpha, beta)
+            score = self.minimax(depth - 1, enemy, bot, alpha, beta, search_cache)
 
-            self.undo_move(r1, c1, r2, c2, sim_move)
+            self.undo_search_move(r1, c1, r2, c2, sim_move)
 
             if score > best_score:
                 best_score = score
-                best_moves = []
-                best_moves.append(m)
+                best_moves = [m]
 
             elif score == best_score:
                 best_moves.append(m)
@@ -1841,7 +2029,7 @@ while True:
 
         while new_id is None:
             print("\nplayer already exists, please try again")
-            l = input("continue to sign up instead? (Y/N): ")
+            l = input("continue to log in instead? (Y/N): ")
             if l.strip().upper() == "N":
                 choice = "log"
                 break
@@ -1932,25 +2120,25 @@ if mode == "bot":
 
         if bot_color == "black":
             player1 = Player(f"{player_name} / white", get_starting_elo(player_elo))
-            player2 = Player("Bot / black", DEFAULT_ELO)
+            player2 = Player("Bot / black")
 
         elif bot_color == "white":
-            player1 = Player("Bot / white", DEFAULT_ELO)
+            player1 = Player("Bot / white")
             player2 = Player(f"{player_name} / black", get_starting_elo(player_elo))
 
     else:
         if bot_color == "black":
             player1 = Player(f"{player_name} / white", get_starting_elo(player_elo))
-            player2 = Player("Bot / black", DEFAULT_ELO)
+            player2 = Player("Bot / black")
         else:
-            player1 = Player("Bot / white", DEFAULT_ELO)
+            player1 = Player("Bot / white")
             player2 = Player(f"{player_name} / black", get_starting_elo(player_elo))
 
 
 # player chooses to play against another player, no saved game logic needed
 else:
     player1 = Player(f"{player_name} white", get_starting_elo(player_elo))
-    player2 = Player("Player 2 / black", DEFAULT_ELO)
+    player2 = Player("Player 2 / black")
 
 
 
