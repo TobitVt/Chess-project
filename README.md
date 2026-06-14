@@ -1,6 +1,6 @@
 # Python Chess Engine (Command-Line)
 
-A fully custom chess game built in Python with no external chess libraries. This project is being developed as a learning and portfolio piece to demonstrate software engineering fundamentals, object-oriented programming, algorithm design, and future AI implementation.
+A fully custom chess game built in Python with no external chess libraries. This project is being developed as a learning and portfolio piece to demonstrate software engineering fundamentals, object-oriented programming, algorithm design, and AI implementation.
 
 ---
 
@@ -14,8 +14,7 @@ chess/
 │   - board logic
 │   - piece movement rules
 │   - game controller
-│   - future AI integration
-│   - timer class
+│   - Chess bot integration
 practice/
 │   Experimental and learning code
 │   - prototype chess engine
@@ -51,10 +50,12 @@ practice/
 - Castling
 - En passant
 - Pawn promotion
-- Chess clock / timer system
 
 - Player vs AI mode
-- Easy AI (random move selection)
+- Easy AI (less sophisticated greedy algorithm)
+- Medium AI (material based evaluation with greedy algorithm)
+- Hard AI (minimax search algorithm)
+- Alpha-beta pruning optimization
 - Save / load game state for bot games
 
 ---
@@ -72,13 +73,9 @@ This is used to test features before integrating them into the main engine.
 
 # Planned Features
 
-## AI System
-- Medium AI (material-based evaluation)
-- Hard AI (minimax search algorithm)
-- Alpha-beta pruning optimization
-
 ## Additional Systems
 - Game history tracking
+- Chess clock / timer system
 
 
 ---
@@ -93,6 +90,7 @@ This is used to test features before integrating them into the main engine.
 - GitHub for remote repository management
 - Visual Studio Code
 - SQLite 3
+- PySide6
 
 ---
 
