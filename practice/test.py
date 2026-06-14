@@ -1,22 +1,19 @@
-import threading
-import time
 import random
 import sqlite3
 import json
 import hashlib
 
 # todo 
-# remove live countdown
 # INTERFACE
 
-# seperate elo and game score, fixed?
-# fix transition between log in and sign up, fixed by interface.
 # add timer
 # done.
 
-# game score should not be same as elo score 
-# elo - only updated after game
-# game score - updated after capture
+
+# done today:
+# CLI remove live countdown
+# fix transition between log in and sign up
+# seperate elo and game score
 
 
 
@@ -159,6 +156,7 @@ def load_saved_game(save_id):
     board_state, current_turn, bot_difficulty, bot_color, time_limit_seconds, player_time_left = save
 
     board = json.loads(board_state)
+
 
     return {
         "board": board,
@@ -306,84 +304,6 @@ def get_piece_name(piece):
     color = "black" if piece.islower() else "white"
     name = piece_names[piece.lower()]
     return f"{color} {name}"
-
-
-def format_time(seconds):
-    seconds = max(0, seconds)
-    minutes, secs = divmod(seconds, 60)
-    return f"{minutes:02d}:{secs:02d}"
-
-
-class TestChessTimer:
-    def __init__(self, seconds_per_player, initial_time_left=None):
-        self.remaining = {
-            "white": seconds_per_player,
-            "black": seconds_per_player
-        }
-        if initial_time_left is not None:
-            initial_time_left = int(initial_time_left)
-            self.remaining["white"] = initial_time_left
-            self.remaining["black"] = initial_time_left
-        self.current_player = None
-        self._stop_event = threading.Event()
-        self._thread = None
-        self._turn_start_remaining = 0
-        self._input_prompt = ""
-
-    def get_remaining(self, player):
-        return max(0, self.remaining.get(player, 0))
-
-    def has_time(self, player):
-        return self.get_remaining(player) > 0
-
-    def _countdown(self):
-        while not self._stop_event.is_set() and self.remaining[self.current_player] > 0:
-            mins, secs = divmod(self.remaining[self.current_player], 60)
-            timer_text = f"[{mins:02d}:{secs:02d}] {self._input_prompt}"
-
-            try:
-                print(f"\r{timer_text}", end="", flush=True)
-            except Exception:
-                pass
-
-            time.sleep(1)
-            self.remaining[self.current_player] -= 1
-
-        if self.remaining[self.current_player] == 0:
-            try:
-                print("\n00:00 - Time's up!\n", end="", flush=True)
-            except Exception:
-                pass
-
-    def start_turn(self, player):
-        self.current_player = player
-        self._turn_start_remaining = self.get_remaining(player)
-        self._stop_event.clear()
-        self._thread = None
-
-    def timed_input(self, prompt):
-        self._input_prompt = prompt
-        try:
-            print(f"[{format_time(self.get_remaining(self.current_player))}] {prompt}", end="", flush=True)
-        except Exception:
-            pass
-
-        if self._thread is None or not self._thread.is_alive():
-            self._thread = threading.Thread(target=self._countdown)
-            self._thread.daemon = True
-            self._thread.start()
-
-        return input()
-
-    def stop_turn(self):
-        self._stop_event.set()
-        if self._thread is not None:
-            self._thread.join(timeout=0.1)
-
-        elapsed = max(0, self._turn_start_remaining - self.get_remaining(self.current_player))
-        timed_out = self.get_remaining(self.current_player) == 0
-        return elapsed, timed_out
-
 
 
 
@@ -1324,7 +1244,7 @@ class Game:
         
         scored_moves = []
         curr_score = 0
-        best_moves = []
+        # best_moves = []
 
         for move in easy_moves:
             r1, c1, r2, c2 = move
@@ -1828,16 +1748,6 @@ class Game:
 
 ###############  game code: ####################################################
 
-def get_time_limit_minutes():
-    choices = {"3": 3, "5": 5, "10": 10, "30": 30}
-    prompt = "Select total minutes per player (3/5/10/30): "
-    while True:
-        value = input(prompt).strip()
-        if value in choices:
-            return choices[value] * 60
-        print("Please choose one of: 3, 5, 10, 30")
-
-
 def get_game_mode():
     prompt = "Select mode: user or bot? (user/bot): "
     while True:
@@ -1892,21 +1802,16 @@ def show_end_game(game, player_color):
     return None
 
 
-def perform_human_turn(game, timer):
-    from_piece = timer.timed_input("what piece do you want to move?: ")
-    from_piece = game.validate_from(from_piece, input_func=timer.timed_input)
-    to_piece = timer.timed_input("where should the piece go?: ")
-    to_piece = game.validate_to(to_piece, input_func=timer.timed_input)
-    elapsed, timed_out = timer.stop_turn()
-
-    if timed_out:
-        return None, True
+def perform_human_turn(game):
+    from_piece = input("what piece do you want to move?: ")
+    from_piece = game.validate_from(from_piece)
+    to_piece = input("where should the piece go?: ")
+    to_piece = game.validate_to(to_piece)
 
     game.make_move(from_piece, to_piece)
-    return elapsed, False
 
 
-def perform_bot_turn(game, timer, difficulty):
+def perform_bot_turn(game, difficulty):
     # obtain bot move(s) according to difficulty
     if difficulty == "easy":
         bot_from_move, bot_to_move = game.easyBot_move()
@@ -1927,18 +1832,12 @@ def perform_bot_turn(game, timer, difficulty):
 
     # validate we have both squares
     if not from_piece or not to_piece:
-        timer.stop_turn()
         print("Bot has no legal moves.")
-        return None, False
+        return None
 
     print(f"Bot chooses {from_piece} to {to_piece}")
-    elapsed, timed_out = timer.stop_turn()
-
-    if timed_out:
-        return None, True
 
     game.make_move(from_piece, to_piece)
-    return elapsed, False
 
 
 def log_in_prompt():
@@ -1963,12 +1862,13 @@ create_tables()
 
 # log in/ sign up
 print("Welcome to chess!\n")
-choice = input("\nlog - log in \n sign - sign up \n guest - continue as guest\n").strip().lower()
+choice = input("\nlog - log in \n sign - sign up \n guest - continue as guest\n your choice: ").strip().lower()
 player_name = ""
 player_elo = 0
 user_info = None
 
-while True:
+finished = False
+while not finished:
     if choice == "log":
         # if db log in matches:
         # continue to game
@@ -1982,23 +1882,24 @@ while True:
 
         user_info = get_player(user)
 
-        stored_hashed_passw = user_info[2]
 
         while user_info is None:
-            print("\nuser not found in database, please try again:")
+            print("\nuser not found in database")
+            
+            s = input("\ncontinue to sign up instead? (Y/N): ")
+            if s.strip().upper() == "Y":
+                choice = "sign"
+                break
+
+            print("\nPlease try again:\n")
             user, passw = log_in_prompt()
             entered_password_hash = hash_password(passw)
 
-            user_info = get_player(user)
-
-            if user_info is None:
-                s = input("\ncontinue to sign up instead? (Y/N): ")
-                if s.strip().upper() == "Y":
-                    choice = "sign"
-                    break
 
         if choice == "sign":
             continue
+
+        stored_hashed_passw = user_info[2]
 
         # user found in DB, check password
         while entered_password_hash != stored_hashed_passw:
@@ -2030,7 +1931,7 @@ while True:
         while new_id is None:
             print("\nplayer already exists, please try again")
             l = input("continue to log in instead? (Y/N): ")
-            if l.strip().upper() == "N":
+            if l.strip().upper() == "Y":
                 choice = "log"
                 break
 
@@ -2150,13 +2051,6 @@ if player_name != "guest" and user_info is not None:
     human_player = next((player for player in chess_game.players.values() if player_name in player.name), None)
     human_player_id = user_info[0]
 
-time_limit = loaded_game.get("time_limit_seconds") if loaded_game else None
-if time_limit is None:
-    time_limit = get_time_limit_minutes()
-
-initial_time_left = loaded_game.get("player_time_left") if loaded_game else None
-chess_timer = TestChessTimer(time_limit, initial_time_left=initial_time_left)
-
 
 while True:
     current_color = chess_game.current_p
@@ -2167,28 +2061,13 @@ while True:
         apply_game_result_elo(chess_game, end_state, human_player, human_player_id)
         break
 
-    # ensure the current player still has time left
-    if not chess_timer.has_time(current_color):
-        print(f"{current_color.capitalize()} ran out of time. Game over.")
-        timeout_result = {"outcome": "timeout", "winner": "black" if current_color == "white" else "white"}
-        apply_game_result_elo(chess_game, timeout_result, human_player, human_player_id)
-        break
-
-    chess_timer.start_turn(current_color)
     print_turn_header(chess_game)
 
     # select human or bot move based on current mode and player
     if mode == "bot" and current_color == bot_color:
-        elapsed, timed_out = perform_bot_turn(chess_game, chess_timer, bot_difficulty)
+        perform_bot_turn(chess_game, bot_difficulty)
     else:
-        elapsed, timed_out = perform_human_turn(chess_game, chess_timer)
-
-    # stop if the move failed due to timeout
-    if timed_out:
-        print(f"{current_color.capitalize()} ran out of time, Move not completed.")
-        break
-
-    print(f"Move time: {elapsed} seconds | Remaining: {format_time(chess_timer.get_remaining(current_color))}")
+        perform_human_turn(chess_game)
 
     next_color = chess_game.current_p
 
@@ -2198,63 +2077,63 @@ while True:
         apply_game_result_elo(chess_game, end_state, human_player, human_player_id)
         break
 
-    # cont = input("continue?(Y/N): ").strip().upper()
-    # while cont not in {"Y", "N"}:
-    #     print("Invalid option. Please choose a valid option.")
-    #     cont = input("save game?(Y/N): ").strip().upper()
+    cont = input("continue?(Y/N): ").strip().upper()
+    while cont not in {"Y", "N"}:
+        print("Invalid option. Please choose a valid option.")
+        cont = input("save game?(Y/N): ").strip().upper()
 
-    # if cont == "N":
-    #     if mode == "bot":
-    #         # guest cant save game, just exit game
-    #         if player_name == "guest":
-    #             print("goodbye!")
-    #             break
+    if cont == "N":
+        if mode == "bot":
+            # guest cant save game, just exit game
+            if player_name == "guest":
+                print("goodbye!")
+                break
 
-    #         # prompt to save game
-    #         q_save = input("save game?(Y/N): ").strip().upper()
-    #         while q_save not in {"Y", "N"}:
-    #             print("Invalid option. Please choose a valid option.")
-    #             q_save = input("save game?(Y/N): ").strip().upper()
+            # prompt to save game
+            q_save = input("save game?(Y/N): ").strip().upper()
+            while q_save not in {"Y", "N"}:
+                print("Invalid option. Please choose a valid option.")
+                q_save = input("save game?(Y/N): ").strip().upper()
 
-    #         # stores current board and required info
-    #         if q_save == "Y":
-    #             save_id = save_game(
-    #                 player_id=user_info[0],
-    #                 board=chess_game.board,
-    #                 current_turn=chess_game.current_p,
-    #                 bot_difficulty=bot_difficulty,
-    #                 bot_color=bot_color,
-    #                 time_limit_seconds=time_limit,
-    #                 player_time_left=chess_timer.get_remaining(chess_game.current_p),
-    #             )
-    #             print(f"Game saved. Save ID: {save_id}, goodbye!")
-    #             break
-    #         else:
-    #             print("exiting without saving, goodbye!")
-    #             break
+            # stores current board and required info
+            if q_save == "Y":
+                save_id = save_game(
+                    player_id=user_info[0],
+                    board=chess_game.board,
+                    current_turn=chess_game.current_p,
+                    bot_difficulty=bot_difficulty,
+                    bot_color=bot_color,
+                    time_limit_seconds=0,
+                    player_time_left=0,
+                )
+                print(f"Game saved. Save ID: {save_id}, goodbye!")
+                break
+            else:
+                print("exiting without saving, goodbye!")
+                break
         
-    #     elif mode == "player":
-    #         draw_offer = input("Offer a draw? (Y/N): ").strip().upper()
-    #         while draw_offer not in {"Y", "N"}:
-    #             print("Invalid option. Please choose a valid option.")
-    #             draw_offer = input("Offer a draw? (Y/N): ").strip().upper()
+        elif mode == "player":
+            draw_offer = input("Offer a draw? (Y/N): ").strip().upper()
+            while draw_offer not in {"Y", "N"}:
+                print("Invalid option. Please choose a valid option.")
+                draw_offer = input("Offer a draw? (Y/N): ").strip().upper()
 
-    #         if draw_offer == "Y":
-    #             print("Draw accepted. No rating changes were made.")
-    #             break
+            if draw_offer == "Y":
+                print("Draw accepted. No rating changes were made.")
+                break
 
-    #         resign = input("Resign and end the game? (Y/N): ").strip().upper()
-    #         while resign not in {"Y", "N"}:
-    #             print("Invalid option. Please choose a valid option.")
-    #             resign = input("Resign and end the game? (Y/N): ").strip().upper()
+            resign = input("Resign and end the game? (Y/N): ").strip().upper()
+            while resign not in {"Y", "N"}:
+                print("Invalid option. Please choose a valid option.")
+                resign = input("Resign and end the game? (Y/N): ").strip().upper()
 
-    #         if resign == "Y":
-    #             if human_player is not None and human_player_id is not None:
-    #                 losing_color = chess_game.current_p
-    #                 winning_color = "black" if losing_color == "white" else "white"
-    #                 result = {"outcome": "resign", "winner": winning_color}
-    #                 apply_game_result_elo(chess_game, result, human_player, human_player_id)
-    #             print("You resigned. Game over.")
-    #             break
+            if resign == "Y":
+                if human_player is not None and human_player_id is not None:
+                    losing_color = chess_game.current_p
+                    winning_color = "black" if losing_color == "white" else "white"
+                    result = {"outcome": "resign", "winner": winning_color}
+                    apply_game_result_elo(chess_game, result, human_player, human_player_id)
+                print("You resigned. Game over.")
+                break
 
-    #         print("Continuing the game.")
+            print("Continuing the game.")

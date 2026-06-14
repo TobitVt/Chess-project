@@ -107,7 +107,7 @@ class Game:
         captured_piece = self.board[row2][col2]
         en_passant_info = None
 
-        if self.is_en_passant_move(moving_piece, row1, col1, row2, col2):
+        if self.is_en_passant_move(moving_piece, row2, col2):
             capture_row, capture_col = self.en_passant_capture_square
             captured_piece = self.board[capture_row][capture_col]
 
@@ -273,75 +273,51 @@ class Game:
         while not is_valid(from_pos):
             print("invalid coordinate\n")
             from_pos = self.get_valid_coordinate("please select a valid piece to move: ", input_func)
-                
 
         # get piece
         row1, col1, selected_piece = self.get_piece_at_position(from_pos)
 
         # make sure player selection is not an empty square
-        while True:
-            
-            row1, col1, selected_piece = self.get_piece_at_position(from_pos)
-
-            if selected_piece != "-":
-                break
-
+        while selected_piece == "-":
             print("no piece at selected square\n")
             from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
-
+            row1, col1, selected_piece = self.get_piece_at_position(from_pos)
 
         # make sure that player owns the piece they want to move
         while not validate_player_move(self.current_p, selected_piece):
-
             print("that piece does not belong to you\n")
             from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
-
             row1, col1, selected_piece = self.get_piece_at_position(from_pos)
 
             while selected_piece == "-":
                 print("no piece at selected square\n")
                 from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
-
                 row1, col1, selected_piece = self.get_piece_at_position(from_pos)
-            
 
         # get all legal moves for selected piece on board
         piece_object = create_piece_object(selected_piece, self.current_p)
         self.legal_moves = self.get_legal_moves(self.current_p, row1, col1, piece_object)
 
-
         # if piece has no legal moves, prompt again
         while len(self.legal_moves) == 0:
-
             print("that piece has no legal moves\n")
             from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
-
             row1, col1, selected_piece = self.get_piece_at_position(from_pos)
 
-                # prevent empty square
             while selected_piece == "-":
                 print("no piece at selected square\n")
                 from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
-
                 row1, col1, selected_piece = self.get_piece_at_position(from_pos)
 
-            # prevent selecting enemy piece
             while not validate_player_move(self.current_p, selected_piece):
-
                 print("that piece does not belong to you\n")
                 from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
-
                 row1, col1, selected_piece = self.get_piece_at_position(from_pos)
 
-            # self.legal_moves = list_moves(selected_piece, row1, col1, self.current_p, self.board)
             piece_object = create_piece_object(selected_piece, self.current_p)
             self.legal_moves = self.get_legal_moves(self.current_p, row1, col1, piece_object)
 
-
         print_possible_moves(self.legal_moves, self.board)
-        # show all legal moves on board
-
-        # print board
         print_board(self.board, self.legal_moves)
 
         return from_pos
@@ -440,7 +416,7 @@ class Game:
 
         return castling_moves
     
-    def is_en_passant_move(self, moving_piece, row1, col1, row2, col2):
+    def is_en_passant_move(self, moving_piece, row2, col2):
         if moving_piece.lower() != "p":
             return False
 
@@ -494,7 +470,7 @@ class Game:
         
         moving_piece = self.board[row1][col1]
 
-        en_passant_move = self.is_en_passant_move(moving_piece, row1, col1, row2, col2)
+        en_passant_move = self.is_en_passant_move(moving_piece, row2, col2)
 
         if en_passant_move:
             capture_row, capture_col = self.en_passant_capture_square
@@ -531,10 +507,8 @@ class Game:
         print(f"{self.current_p} moves from {from_pos} to {to_pos}")
         self.switch_turn()
 
-    # easy level bot code test:
-
-    def easy_bot_move(self):
-        bot_moves = []
+    def get_moves_for_player(self, player):
+        moves = []
 
         for r in range(8):
             for c in range(8):
@@ -543,46 +517,547 @@ class Game:
                 # skip empty squares
                 if piece == "-":
                     continue
-
+                    
                 # skip opponent pieces
-                if not validate_player_move(self.current_p, piece):
+                if not validate_player_move(player, piece):
                     continue
 
                 # create the piece object
-                piece_object = create_piece_object(piece, self.current_p)
+                piece_obj = create_piece_object(piece, player)
 
+                if not piece_obj:
+                    continue
+                    
                 # get legal moves for that piece
-                legal_moves = self.get_legal_moves(self.current_p, r, c, piece_object)
+                opp_legal_moves = self.get_legal_moves(player, r, c, piece_obj)
 
-                # store every legal move
-                for move in legal_moves:
-                    from_square = convert_to_chess_notation(r, c)
-                    to_square = convert_to_chess_notation(move[0], move[1])
+                for row2, col2 in opp_legal_moves:
+                    moves.append((r, c, row2, col2))
 
-                    bot_moves.append((from_square, to_square))
+        return moves
 
-        if len(bot_moves) == 0:
-            return None
-
-        return random.choice(bot_moves)
+    def get_bot_moves(self):
+        return self.get_moves_for_player(self.current_p)
 
 
-    def easyBot_to(self):
-        if len(self.legal_moves) == 0:
+    def score_easy_move(self, r2, c2):
+        score = 0
+
+        target_piece = self.board[r2][c2].lower()
+
+        if target_piece != "-":
+            score += piece_values[target_piece]
+
+        return score
+    
+    def easyBot_move(self):
+        easy_moves = self.get_bot_moves()
+
+        if not easy_moves:
             return None
         
-        row, col = random.choice(self.legal_moves)
-        return convert_to_chess_notation(row, col)
+        pawn_moves = []
+        non_pawn_moves = []
+        
+        scored_moves = []
+        curr_score = 0
+        # best_moves = []
+
+        for move in easy_moves:
+            r1, c1, r2, c2 = move
+            curr_score = self.score_easy_move(r2, c2)
+
+            scored_move = (curr_score, r1, c1, r2, c2)
+            scored_moves.append(scored_move)
+
+            moving_piece = self.board[r1][c1].lower()
+
+            if moving_piece == "p":
+                pawn_moves.append(scored_move)
+            else:
+                non_pawn_moves.append(scored_move)
+
+            
+
+        if non_pawn_moves and random.random() < 0.35:
+            move_pool = non_pawn_moves
+        else:
+            scored_moves.sort(key=lambda move: move[0], reverse=True)
+            move_pool = scored_moves[:8]
+
+        final = random.choice(move_pool)
+
+        score, row1, col1, row2, col2 = final
+
+        from_square = convert_to_chess_notation(row1, col1)
+        to_square = convert_to_chess_notation(row2, col2)
+
+        return from_square, to_square
+
+    # temp, find one already in program: 
+    def get_enemy_player(self, player):
+        if player == "white":
+            return "black" 
+        return "white"
+    
+
+    def score_med_move(self, r1, c1, r2, c2):
+        score = 0
+
+        center_squares = {(3, 3), (3, 4), (4, 3), (4, 4)}
+
+        moving_piece = self.board[r1][c1].lower()
+        target_piece = self.board[r2][c2].lower()
+
+        moving_score = piece_values[moving_piece]
+
+        if target_piece != "-":
+            target_score = piece_values[target_piece]
+
+            score += target_score * 10
+            score -= moving_score
+
+        # reward en passant
+        if self.is_en_passant_move(self.board[r1][c1], r2, c2):
+            score += piece_values["p"] * 10
+            score -= moving_score
+
+        # Rule: reward center control
+        if (r2, c2) in center_squares:
+            score += 2
+
+        # reward pawn promotion
+        if moving_piece == "p":
+            if self.current_p == "white" and r2 == 0:
+                score += 90
+            elif self.current_p == "black" and r2 == 7:
+                score += 90
+
+        # reward castling
+        if moving_piece == "k" and r1 == r2 and abs(c2 - c1) == 2:
+            score += 8
+
+        # reward developing knights and bishops
+        if moving_piece in ["n", "b"]:
+            if self.current_p == "white" and r1 == 7:
+                score += 3
+            elif self.current_p == "black" and r1 == 0:
+                score += 3
+
+        # simulate move
+        move_info = self.simulate_move(r1, c1, r2, c2)
+        enemy = self.get_enemy_player(self.current_p)
+
+        # punish move that creates danger
+        if self.is_square_attacked(r2, c2, enemy):
+            score -= moving_score * 3
+
+        # reward check/checkmate
+        if self.is_checkmate(enemy):
+            score += 1000
+
+        elif self.is_in_check(enemy):
+            score += 5
+
+        self.undo_move(r1, c1, r2, c2, move_info)
+
+        return score
+    
+    
+
+    def medBot_move(self):
+        med_moves = self.get_bot_moves()
+
+        if not med_moves:
+            return None
+        
+        scored_moves = []
+        curr_score = 0
+        best_moves = []
+
+        for move in med_moves:
+            r1, c1, r2, c2 = move
+            curr_score = self.score_med_move(r1, c1, r2, c2)
+            scored_moves.append((curr_score, r1, c1, r2, c2))
+
+        highest = max(scored_moves, key=lambda move: move[0])
+
+        for move in scored_moves:
+            if move[0] == highest[0]:
+                best_moves.append(move) 
+
+        final = random.choice(best_moves)
+
+        score, row1, col1, row2, col2 = final
+
+        from_square = convert_to_chess_notation(row1, col1)
+        to_square = convert_to_chess_notation(row2, col2)
+
+        return from_square, to_square
+    
+    def simulate_search_move(self, r1, c1, r2, c2):
+        moving_piece = self.board[r1][c1]
+
+        move_info = self.simulate_move(r1, c1, r2, c2)
+
+        promoted = False
+
+        if moving_piece == "P" and r2 == 0:
+            self.board[r2][c2] = "Q"
+            promoted = True
+
+        elif moving_piece == "p" and r2 == 7:
+            self.board[r2][c2] = "q"
+            promoted = True
+
+        return move_info, promoted, moving_piece
 
 
-    def medBot_from(self):
-        pass
+    def undo_search_move(self, r1, c1, r2, c2, search_info):
+        move_info, promoted, original_piece = search_info
 
-    def medBot_to(self):
-        pass
+        if promoted:
+            self.board[r2][c2] = original_piece
 
-    def hardBot_from(self):
-        pass
+        self.undo_move(r1, c1, r2, c2, move_info)
+    
+    def evaluate_board(self, bot_player):
+        score = 0
+        center_squares = {(3, 3), (3, 4), (4, 3), (4, 4)}
+        white_castled_squares = {(7, 6),  (7, 2)}
+        black_castled_squares = {(0, 6),  (0, 2)}
 
-    def hardBot_to(self):
-        pass
+
+        for r in range(8):
+            for c in range(8):
+                piece = self.board[r][c]
+
+                if piece == "-":
+                    continue
+
+                piece_type = piece.lower()
+                value = piece_values[piece_type]
+
+                if bot_player == "white":
+                    is_bot_piece = piece.isupper()
+                else:
+                    is_bot_piece = piece.islower()
+
+                # Rule 1: material score
+                if is_bot_piece:
+                    score += value
+                else:
+                    score -= value
+
+                # Rule 2: reward center control
+                if (r, c) in center_squares:
+                    if is_bot_piece:
+                        score += 1
+                    else:
+                        score -= 1
+
+                # Rule 3: reward developed knights and bishops
+                if piece_type in ["n", "b"]:
+                    developed = False
+
+                    # white knight/bishop developed if it left row 7
+                    if piece.isupper() and r != 7:
+                        developed = True
+
+                    # black knight/bishop developed if it left row 0
+                    elif piece.islower() and r != 0:
+                        developed = True
+
+                    if developed:
+                        if is_bot_piece:
+                            score += 1
+                        else:
+                            score -= 1
+
+                # Rule 4: reward castled king position
+                if piece_type == "k":
+                    castled = False
+
+                    if piece.isupper() and (r, c) in white_castled_squares:
+                        castled = True
+
+                    elif piece.islower() and (r, c) in black_castled_squares:
+                        castled = True
+
+                    if castled:
+                        if is_bot_piece:
+                            score += 2
+                        else:
+                            score -= 2
+
+                # Rule 5: pawn structure
+                if piece_type == "p":
+                    if self.is_passed_pawn(r, c, piece):
+                        if is_bot_piece:
+                            score += 2
+                        else:
+                            score -= 2
+
+                    if self.is_doubled_pawn(c, piece):
+                        if is_bot_piece:
+                            score -= 1
+                        else:
+                            score += 1
+
+        # Rule 6: mobility bonus
+        enemy = self.get_enemy_player(bot_player)
+
+        if self.is_in_check(enemy):
+            score += 3
+
+        if self.is_in_check(bot_player):
+            score -= 3
+
+        # mobility bonus
+        bot_moves = len(self.get_moves_for_player(bot_player))
+        enemy_moves = len(self.get_moves_for_player(enemy))
+
+        mobility_difference = bot_moves - enemy_moves
+
+        score += mobility_difference * 0.1
+
+
+        return score
+    
+    def order_moves(self, player, moves):
+        ordered_candidates = []
+
+        for m in moves:
+            ordering_score = 0
+            r1, c1, r2, c2 = m
+            mov = self.board[r1][c1].lower()
+            targ = self.board[r2][c2].lower()
+
+
+            if targ != "-":
+                targ_val = piece_values[targ]
+
+                ordering_score += targ_val * 10
+            
+            # reward pawn promotion
+            if mov == "p":
+                if player == "white" and r2 == 0:
+                    ordering_score += 90
+                elif player == "black" and r2 == 7:
+                    ordering_score += 90
+
+            # reward castling
+            if mov == "k" and r1 == r2 and abs(c2 - c1) == 2:
+                ordering_score += 8
+
+            # reward developing knights and bishops
+            if mov in ["n", "b"]:
+                if player == "white" and r1 == 7:
+                    ordering_score += 3
+                elif player == "black" and r1 == 0:
+                    ordering_score += 3
+
+            ordered_candidates.append((ordering_score, m))
+        
+        highest_first = sorted(ordered_candidates, key=lambda item: item[0], reverse=True)
+
+        ordered_moves = [item[1] for item in highest_first]
+
+        return ordered_moves
+    
+
+    def get_board_key(self):
+        return tuple(tuple(row) for row in self.board)
+    
+    def get_cache_key(self, depth, player_to_move, bot):
+        castling_state = (
+            self.king_moved["white"],
+            self.king_moved["black"],
+            self.rook_moved["white"]["kingside"],
+            self.rook_moved["white"]["queenside"],
+            self.rook_moved["black"]["kingside"],
+            self.rook_moved["black"]["queenside"]
+        )
+
+        return (self.get_board_key(), depth, player_to_move, bot, self.en_passant_target, castling_state)
+
+    def count_pieces(self):
+        count = 0
+        for r in range(8):
+            for c in range(8):
+                curr_piece = self.board[r][c]
+
+                if curr_piece != "-":
+                    count += 1
+
+        return count
+    
+    def is_doubled_pawn(self, col, pawn):
+        count = 0
+
+        for r in range(8):
+            if self.board[r][col] == pawn:
+                count += 1
+
+        return count > 1
+
+
+    def is_passed_pawn(self, row, col, pawn):
+        if pawn == "P":
+            enemy_pawn = "p"
+            rows_to_check = range(row - 1, -1, -1)
+
+        elif pawn == "p":
+            enemy_pawn = "P"
+            rows_to_check = range(row + 1, 8)
+
+        else:
+            return False
+
+        for r in rows_to_check:
+            for dc in [-1, 0, 1]:
+                check_col = col + dc
+
+                if 0 <= check_col < 8:
+                    if self.board[r][check_col] == enemy_pawn:
+                        return False
+
+        return True
+        
+    def minimax(self, depth, player_to_move, bot, alpha, beta, search_cache):
+        if depth == 0:
+            return self.evaluate_board(bot)
+        
+        cache_key = self.get_cache_key(depth, player_to_move, bot)
+
+        if cache_key in search_cache:
+            return search_cache[cache_key]
+        
+        moves = self.get_moves_for_player(player_to_move)
+        moves = self.order_moves(player_to_move, moves)
+
+        if len(moves) == 0:
+            if self.is_in_check(player_to_move):
+                if player_to_move == bot:
+                    return -99999 - depth
+                else:
+                    return 99999 + depth
+                
+            else:
+                return 0
+ 
+        
+
+        enemy = self.get_enemy_player(player_to_move)
+        
+        if player_to_move == bot:
+
+            best_score = -99999
+            pruned = False
+
+            for m in moves:
+                r1, c1, r2, c2 = m
+
+                sim_move = self.simulate_search_move(r1, c1, r2, c2)
+
+
+                score = self.minimax(depth - 1, enemy, bot, alpha, beta, search_cache)
+
+                self.undo_search_move(r1, c1, r2, c2, sim_move)
+
+                if score > best_score:
+                    best_score = score
+
+                alpha = max(alpha, best_score)
+
+                if beta <= alpha:
+                    pruned = True
+                    break
+            
+            if not pruned:
+                search_cache[cache_key] = best_score  
+
+            return best_score
+        
+        else:
+            best_score = 99999
+            pruned = False
+
+            for m in moves:
+                r1, c1, r2, c2 = m
+                sim_move = self.simulate_search_move(r1, c1, r2, c2)
+
+
+                score = self.minimax(depth - 1, enemy, bot, alpha, beta, search_cache)
+
+                self.undo_search_move(r1, c1, r2, c2, sim_move)
+
+                if score < best_score:
+                    best_score = score
+
+                beta = min(beta, best_score)
+
+                if beta <= alpha:
+                    pruned = True
+                    break
+
+            if not pruned:
+                search_cache[cache_key] = best_score
+                
+            return best_score
+
+
+    def hardBot_move(self):
+
+        search_cache = {}
+        piece_count = self.count_pieces()
+
+        if piece_count > 24:
+            depth = 2
+        elif piece_count > 12:
+            depth = 3
+        else:
+            depth = 4
+
+
+        alpha = -99999
+        beta = 99999
+
+
+        bot = self.current_p
+        enemy = self.get_enemy_player(bot)
+
+        moves = self.get_moves_for_player(bot)
+        moves = self.order_moves(bot, moves)
+
+
+        if len(moves) == 0:
+            return None
+        
+        best_score = -99999
+        best_moves = []
+
+        for m in moves:
+            r1, c1, r2, c2 = m
+
+            sim_move = self.simulate_search_move(r1, c1, r2, c2)
+
+            score = self.minimax(depth - 1, enemy, bot, alpha, beta, search_cache)
+
+            self.undo_search_move(r1, c1, r2, c2, sim_move)
+
+            if score > best_score:
+                best_score = score
+                best_moves = [m]
+
+            elif score == best_score:
+                best_moves.append(m)
+
+        final = random.choice(best_moves)
+
+        row1, col1, row2, col2 = final
+
+        from_square = convert_to_chess_notation(row1, col1)
+        to_square = convert_to_chess_notation(row2, col2)
+
+        return from_square, to_square

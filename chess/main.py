@@ -4,21 +4,11 @@ from move_validator import *
 from pieces import *
 from player import *
 from utils import *
-from chess.timer import *
-from chess.database import *
+# from chess.timer import *
+from database import *
 
 
 ###############  game code: ####################################################
-
-
-def get_time_limit_minutes():
-    choices = {"3": 3, "5": 5, "10": 10, "30": 30}
-    prompt = "Select total minutes per player (3/5/10/30): "
-    while True:
-        value = input(prompt).strip()
-        if value in choices:
-            return choices[value] * 60
-        print("Please choose one of: 3, 5, 10, 30")
 
 
 def get_game_mode():
@@ -75,33 +65,25 @@ def show_end_game(game, player_color):
     return None
 
 
-def perform_human_turn(game, timer):
-    from_piece = timer.timed_input("what piece do you want to move?: ")
-    from_piece = game.validate_from(from_piece, input_func=timer.timed_input)
-    to_piece = timer.timed_input("where should the piece go?: ")
-    to_piece = game.validate_to(to_piece, input_func=timer.timed_input)
-    elapsed, timed_out = timer.stop_turn()
-
-    if timed_out:
-        return None, True
+def perform_human_turn(game):
+    from_piece = input("what piece do you want to move?: ")
+    from_piece = game.validate_from(from_piece)
+    to_piece = input("where should the piece go?: ")
+    to_piece = game.validate_to(to_piece)
 
     game.make_move(from_piece, to_piece)
-    return elapsed, False
 
 
-def perform_bot_turn(game, timer, difficulty):
+def perform_bot_turn(game, difficulty):
     # obtain bot move(s) according to difficulty
     if difficulty == "easy":
-        bot_from_move = game.easy_bot_move()
-        bot_to_move = game.easyBot_to()
+        bot_from_move, bot_to_move = game.easyBot_move()
 
     if difficulty == "medium":
-        bot_from_move = game.medBot_from()
-        bot_to_move = game.medBot_to()
+        bot_from_move, bot_to_move  = game.medBot_move()
 
     if difficulty == "hard":
-        bot_from_move = game.hardBot_from()
-        bot_to_move = game.hardBot_to()
+        bot_from_move, bot_to_move = game.hardBot_move()
 
 
     # if bot_from_move returned a (from,to) tuple, unpack it
@@ -113,18 +95,12 @@ def perform_bot_turn(game, timer, difficulty):
 
     # validate we have both squares
     if not from_piece or not to_piece:
-        timer.stop_turn()
         print("Bot has no legal moves.")
-        return None, False
+        return None
 
     print(f"Bot chooses {from_piece} to {to_piece}")
-    elapsed, timed_out = timer.stop_turn()
-
-    if timed_out:
-        return None, True
 
     game.make_move(from_piece, to_piece)
-    return elapsed, False
 
 
 def log_in_prompt():
@@ -149,12 +125,13 @@ create_tables()
 
 # log in/ sign up
 print("Welcome to chess!\n")
-choice = input("\nlog - log in \n sign - sign up \n guest - continue as guest\n").strip().lower()
+choice = input("\nlog - log in \n sign - sign up \n guest - continue as guest\n your choice: ").strip().lower()
 player_name = ""
 player_elo = 0
 user_info = None
 
-while True:
+finished = False
+while not finished:
     if choice == "log":
         # if db log in matches:
         # continue to game
@@ -168,23 +145,24 @@ while True:
 
         user_info = get_player(user)
 
-        stored_hashed_passw = user_info[2]
 
         while user_info is None:
-            print("\nuser not found in database, please try again:")
+            print("\nuser not found in database")
+            
+            s = input("\ncontinue to sign up instead? (Y/N): ")
+            if s.strip().upper() == "Y":
+                choice = "sign"
+                break
+
+            print("\nPlease try again:\n")
             user, passw = log_in_prompt()
             entered_password_hash = hash_password(passw)
 
-            user_info = get_player(user)
-
-            if user_info is None:
-                s = input("\ncontinue to sign up instead? (Y/N): ")
-                if s.strip().upper() == "Y":
-                    choice = "sign"
-                    break
 
         if choice == "sign":
             continue
+
+        stored_hashed_passw = user_info[2]
 
         # user found in DB, check password
         while entered_password_hash != stored_hashed_passw:
@@ -215,8 +193,8 @@ while True:
 
         while new_id is None:
             print("\nplayer already exists, please try again")
-            l = input("continue to sign up instead? (Y/N): ")
-            if l.strip().upper() == "N":
+            l = input("continue to log in instead? (Y/N): ")
+            if l.strip().upper() == "Y":
                 choice = "log"
                 break
 
@@ -306,25 +284,25 @@ if mode == "bot":
 
         if bot_color == "black":
             player1 = Player(f"{player_name} / white", get_starting_elo(player_elo))
-            player2 = Player("Bot / black", DEFAULT_ELO)
+            player2 = Player("Bot / black")
 
         elif bot_color == "white":
-            player1 = Player("Bot / white", DEFAULT_ELO)
+            player1 = Player("Bot / white")
             player2 = Player(f"{player_name} / black", get_starting_elo(player_elo))
 
     else:
         if bot_color == "black":
             player1 = Player(f"{player_name} / white", get_starting_elo(player_elo))
-            player2 = Player("Bot / black", DEFAULT_ELO)
+            player2 = Player("Bot / black")
         else:
-            player1 = Player("Bot / white", DEFAULT_ELO)
+            player1 = Player("Bot / white")
             player2 = Player(f"{player_name} / black", get_starting_elo(player_elo))
 
 
 # player chooses to play against another player, no saved game logic needed
 else:
     player1 = Player(f"{player_name} white", get_starting_elo(player_elo))
-    player2 = Player("Player 2 / black", DEFAULT_ELO)
+    player2 = Player("Player 2 / black")
 
 
 
@@ -336,13 +314,6 @@ if player_name != "guest" and user_info is not None:
     human_player = next((player for player in chess_game.players.values() if player_name in player.name), None)
     human_player_id = user_info[0]
 
-time_limit = loaded_game.get("time_limit_seconds") if loaded_game else None
-if time_limit is None:
-    time_limit = get_time_limit_minutes()
-
-initial_time_left = loaded_game.get("player_time_left") if loaded_game else None
-chess_timer = ChessTimer(time_limit, initial_time_left=initial_time_left)
-
 
 while True:
     current_color = chess_game.current_p
@@ -353,24 +324,21 @@ while True:
         apply_game_result_elo(chess_game, end_state, human_player, human_player_id)
         break
 
-    # ensure the current player still has time left
-    if not chess_timer.has_time(current_color):
-        print(f"{current_color.capitalize()} ran out of time. Game over.")
-        timeout_result = {"outcome": "timeout", "winner": "black" if current_color == "white" else "white"}
-        apply_game_result_elo(chess_game, timeout_result, human_player, human_player_id)
-        break
-
-    chess_timer.start_turn(current_color)
     print_turn_header(chess_game)
 
     # select human or bot move based on current mode and player
     if mode == "bot" and current_color == bot_color:
-        elapsed, timed_out = perform_bot_turn(chess_game, chess_timer, bot_difficulty)
+        perform_bot_turn(chess_game, bot_difficulty)
     else:
-        elapsed, timed_out = perform_human_turn(chess_game, chess_timer)
+        perform_human_turn(chess_game)
 
+    next_color = chess_game.current_p
 
-
+    # check for game-over conditions after the move
+    end_state = show_end_game(chess_game, next_color)
+    if end_state is not None:
+        apply_game_result_elo(chess_game, end_state, human_player, human_player_id)
+        break
 
     cont = input("continue?(Y/N): ").strip().upper()
     while cont not in {"Y", "N"}:
@@ -398,8 +366,8 @@ while True:
                     current_turn=chess_game.current_p,
                     bot_difficulty=bot_difficulty,
                     bot_color=bot_color,
-                    time_limit_seconds=time_limit,
-                    player_time_left=chess_timer.get_remaining(chess_game.current_p),
+                    time_limit_seconds=0,
+                    player_time_left=0,
                 )
                 print(f"Game saved. Save ID: {save_id}, goodbye!")
                 break
@@ -432,18 +400,3 @@ while True:
                 break
 
             print("Continuing the game.")
-
-    # stop if the move failed due to timeout
-    if timed_out:
-        print(f"{current_color.capitalize()} ran out of time! Move not completed.")
-        break
-
-    print(f"Move time: {elapsed} seconds | Remaining: {format_time(chess_timer.get_remaining(current_color))}")
-
-    next_color = chess_game.current_p
-
-    # check for game-over conditions after the move
-    end_state = show_end_game(chess_game, next_color)
-    if end_state is not None:
-        apply_game_result_elo(chess_game, end_state, human_player, human_player_id)
-        break
