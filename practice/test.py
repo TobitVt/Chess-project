@@ -10,12 +10,6 @@ import hashlib
 # done.
 
 
-# done today:
-# CLI remove live countdown
-# fix transition between log in and sign up
-# seperate elo and game score
-
-
 
 ############### DATABASE ###############################################
 DB_NAME = "chess_game.db"
