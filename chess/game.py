@@ -352,7 +352,7 @@ class Game:
 
         return False
 
-    def promote_pawn(self, row, col):
+    def promote_pawn(self, row, col, promotion_choice):
 
         promotion_options = {
             "q": "queen",
@@ -454,11 +454,10 @@ class Game:
         return en_passant_moves
 
     
-    def make_move(self, from_pos, to_pos):
-        # simulate move, then switch turns
+    def make_move(self, row1, col1, row2, col2, promotion_choice=None):
 
-        row1, col1 = convert_move(from_pos)
-        row2, col2 = convert_move(to_pos)
+        from_pos = convert_to_chess_notation(row1, col1)
+        to_pos = convert_to_chess_notation(row2, col2)
 
         if not (0 <= row1 < 8 and 0 <= col1 < 8):
             print("invalid FROM position")
@@ -496,7 +495,7 @@ class Game:
         self.board[row1][col1] = "-"
 
         if self.should_promote_pawn(moving_piece, row2):
-            self.promote_pawn(row2, col2)
+            self.promote_pawn(row2, col2, promotion_choice)
 
         # if castling, move rook too
         self.move_rook_for_castling(row1, col1, row2, col2)

@@ -1,4 +1,5 @@
 import sqlite3
+from board import *
 
 DEFAULT_ELO = 1200
 
@@ -88,3 +89,122 @@ def convert_to_chess_notation(row, col):
     rank = str(8 - row)
 
     return file + rank
+
+
+def get_game_mode():
+    prompt = "Select mode: user or bot? (user/bot): "
+    while True:
+        mode = input(prompt).strip().lower()
+        if mode in ("user", "u"):
+            return "user"
+        if mode in ("bot", "b"):
+            return "bot"
+        print("Please enter 'user' or 'bot'.")
+
+
+def get_bot_difficulty():
+    prompt = "Select bot difficulty (easy/medium/hard): "
+    while True:
+        difficulty = input(prompt).strip().lower()
+        if difficulty in ("easy", "medium", "hard"):
+            return difficulty
+        print("Please enter 'easy', 'medium', or 'hard'.")
+
+def get_bot_color():
+    prompt = "select the color the bot should play as(black/white): "
+    while True:
+        color = input(prompt).strip().lower()
+        if color in ("black", "white"):
+            return color
+        print("please select either black or white.")
+
+
+def print_turn_header(game):
+    current_color = game.current_p
+    if game.is_in_check(current_color):
+        print("CHECK! You are in check.")
+        
+    print_board(game.board)
+    current_player = game.get_current_player()
+    print(f"player at turn: {current_player.get_player_info()}")
+    print(f"captured pieces: {current_player.get_captured_list()}")
+
+
+def show_end_game(game, player_color):
+    if game.is_checkmate(player_color):
+        print_board(game.board)
+        winner_color = "black" if player_color == "white" else "white"
+        print(f"CHECKMATE! {player_color.capitalize()} loses.")
+        return {"outcome": "checkmate", "winner": winner_color}
+
+    if game.is_stalemate(player_color):
+        print_board(game.board)
+        print("STALEMATE! Draw.")
+        return {"outcome": "draw"}
+
+    return None
+
+
+def perform_human_turn(game):
+    from_piece = input("what piece do you want to move?: ")
+    from_piece = game.validate_from(from_piece)
+    to_piece = input("where should the piece go?: ")
+    to_piece = game.validate_to(to_piece)
+
+    game.make_move(from_piece, to_piece)
+
+
+def perform_bot_turn(game, difficulty):
+    # obtain bot move(s) according to difficulty
+    if difficulty == "easy":
+        bot_from_move, bot_to_move = game.easyBot_move()
+
+    if difficulty == "medium":
+        bot_from_move, bot_to_move  = game.medBot_move()
+
+    if difficulty == "hard":
+        bot_from_move, bot_to_move = game.hardBot_move()
+
+
+    # if bot_from_move returned a (from,to) tuple, unpack it
+    if isinstance(bot_from_move, tuple):
+        from_piece, to_piece = bot_from_move
+    else:
+        from_piece = bot_from_move
+        to_piece = bot_to_move
+
+    # validate we have both squares
+    if not from_piece or not to_piece:
+        print("Bot has no legal moves.")
+        return None
+
+    print(f"Bot chooses {from_piece} to {to_piece}")
+
+    from_coord = convert_move(from_piece)
+    to_coor = convert_move(to_piece)
+
+    r1, c1 = from_coord
+
+    r2, c2 = to_coor
+
+    game.make_move(r1, c1, r2, c2)
+
+
+def log_in_prompt():
+    u_name = input("welcome back! please enter your username: ")
+    p_word = input("please enter your password: ")
+
+    return u_name, p_word
+
+def sign_up_prompt():
+    u_name = input("welcome to the chess app. Please enter your name/username: ")
+    p_word1 = input("please set a password: ")
+    p_word2 = input("please confirm password: ")
+
+    while p_word1 != p_word2:
+        print("passwords did not match")
+        p_word1 = input("please set a password: ")
+        p_word2 = input("please confirm password: ")
+
+    return u_name, p_word1
+
