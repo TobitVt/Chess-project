@@ -189,6 +189,7 @@ def perform_bot_turn(game, difficulty):
 
     game.make_move(r1, c1, r2, c2)
 
+    return [(r1, c1), (r2, c2)]
 
 def log_in_prompt():
     u_name = input("welcome back! please enter your username: ")
