@@ -30,3 +30,11 @@ if __name__ == "__main__":
 
     sys.exit(app.exec())
 
+
+# add: captured list with icons
+# timer
+# log in/sign up
+# piece capture in move history
+# create pop up for game end like checkmate(white loss/win and reason, etc)
+
+# remove: redundant console code

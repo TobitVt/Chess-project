@@ -146,7 +146,3 @@ def load_saved_game(save_id):
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
-
-
-# create_tables()
-# print("Database and tables created successfully.")

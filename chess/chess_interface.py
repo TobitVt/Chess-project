@@ -270,11 +270,13 @@ class ChessBoard(QMainWindow):
     def create_coordinate_label(self, text):
         label = QLabel(text)
         label.setAlignment(Qt.AlignCenter)
+
         label.setStyleSheet("""
             QLabel {
                 font-size: 18px;
                 font-weight: bold;
                 color: white;
+                padding: 20px;
             }
         """)
         return label

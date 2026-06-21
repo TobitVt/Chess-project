@@ -2,37 +2,6 @@ from utils import *
 
 ###############  board representation ##################################
 
-# print function:
-def print_board(board, highlights=None):
-    if highlights is None:
-        highlights = []
-
-    print("\n   a b c d e f g h \n")
-
-    for r in range(8):
-        row_items = []
-
-        for c in range(8):
-            if (r, c) in highlights:
-                if board[r][c] == "-":
-                    row_items.append("#")
-                else:
-                    row_items.append("*")
-            else:
-                row_items.append(board[r][c])
-
-        row_str = " ".join(row_items)
-
-        if r == 0:
-            print(f"{8 - r}  {row_str}  - Black side")
-        elif r == 7:
-            print(f"{8 - r}  {row_str}  - White side")
-        else:
-            print(f"{8 - r}  {row_str}")
-
-    print("\n   a b c d e f g h \n")
-
-
 
 # create chess board using list comprehension
 chess_board = [["-" for i in range(8)] for j in range(8)]
@@ -78,23 +47,4 @@ def get_piece_name(piece):
     color = "black" if piece.islower() else "white"
     name = piece_names[piece.lower()]
     return f"{color} {name}"
-
-
-def print_possible_moves(valid_moves, board):
-    print("\nPossible moves:")
-
-    for r, c in valid_moves:
-
-        square = convert_to_chess_notation(r, c)
-        target_piece = board[r][c]
-
-        if target_piece != "-":
-            enemy_name = piece_names[target_piece.lower()]
-            print(f"{square}(take enemy {enemy_name})", end=" ")
-
-        else:
-            print(square, end=" ")
-
-    print("\n")
-
 

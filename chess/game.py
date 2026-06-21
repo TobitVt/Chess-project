@@ -254,90 +254,6 @@ class Game:
     def is_stalemate(self, player):
         return not self.is_in_check(player) and not self.has_any_legal_moves(player)
     
-    def get_piece_at_position(self, pos):
-        row, col = convert_move(pos)
-        return row, col, self.board[row][col]
-    
-    def get_valid_coordinate(self, prompt, input_func=input):
-        pos = input_func(prompt)
-
-        while not is_valid(pos):
-            print("invalid coordinate\n")
-            pos = input_func(prompt)
-
-        return pos
-    
-    def validate_from(self, from_pos, input_func=input):
-        # ensure move is valid
-
-        while not is_valid(from_pos):
-            print("invalid coordinate\n")
-            from_pos = self.get_valid_coordinate("please select a valid piece to move: ", input_func)
-
-        # get piece
-        row1, col1, selected_piece = self.get_piece_at_position(from_pos)
-
-        # make sure player selection is not an empty square
-        while selected_piece == "-":
-            print("no piece at selected square\n")
-            from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
-            row1, col1, selected_piece = self.get_piece_at_position(from_pos)
-
-        # make sure that player owns the piece they want to move
-        while not validate_player_move(self.current_p, selected_piece):
-            print("that piece does not belong to you\n")
-            from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
-            row1, col1, selected_piece = self.get_piece_at_position(from_pos)
-
-            while selected_piece == "-":
-                print("no piece at selected square\n")
-                from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
-                row1, col1, selected_piece = self.get_piece_at_position(from_pos)
-
-        # get all legal moves for selected piece on board
-        piece_object = create_piece_object(selected_piece, self.current_p)
-        self.legal_moves = self.get_legal_moves(self.current_p, row1, col1, piece_object)
-
-        # if piece has no legal moves, prompt again
-        while len(self.legal_moves) == 0:
-            print("that piece has no legal moves\n")
-            from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
-            row1, col1, selected_piece = self.get_piece_at_position(from_pos)
-
-            while selected_piece == "-":
-                print("no piece at selected square\n")
-                from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
-                row1, col1, selected_piece = self.get_piece_at_position(from_pos)
-
-            while not validate_player_move(self.current_p, selected_piece):
-                print("that piece does not belong to you\n")
-                from_pos = self.get_valid_coordinate("please select a different piece to move: ", input_func)
-                row1, col1, selected_piece = self.get_piece_at_position(from_pos)
-
-            piece_object = create_piece_object(selected_piece, self.current_p)
-            self.legal_moves = self.get_legal_moves(self.current_p, row1, col1, piece_object)
-
-        print_possible_moves(self.legal_moves, self.board)
-        print_board(self.board, self.legal_moves)
-
-        return from_pos
-
-
-    def validate_to(self, to_pos, input_func=input):
-
-        while True:
-
-            while not is_valid(to_pos):
-                print("invalid destination\n")
-                to_pos = input_func("please select a different place to move to: ")
-
-            row2, col2 = convert_move(to_pos)
-
-            if (row2, col2) in self.legal_moves:
-                return to_pos
-
-            print("illegal move for that piece\n")
-            to_pos = input_func("please select a different place to move to: ")
 
     def should_promote_pawn(self, piece, row):
 
@@ -351,8 +267,8 @@ class Game:
             return True
 
         return False
-
-    def promote_pawn(self, row, col, promotion_choice):
+    
+    def promote_pawn(self, row, col, promotion_choice="q"):
 
         promotion_options = {
             "q": "queen",
@@ -361,21 +277,16 @@ class Game:
             "n": "knight"
         }
 
-        choice = input("Promote pawn to queen, rook, bishop, or knight? (q/r/b/n): ").lower()
+        choice = promotion_choice.lower()
 
-        while choice not in promotion_options:
-            print("invalid promotion choice\n")
-            choice = input("Choose q, r, b, or n: ").lower()
+        # Default to queen if something invalid is passed
+        if choice not in promotion_options:
+            choice = "q"
 
-        # white pieces are uppercase
         if self.current_p == "white":
             self.board[row][col] = choice.upper()
-
-        # black pieces are lowercase
         else:
             self.board[row][col] = choice
-
-        print(f"Pawn promoted to {promotion_options[choice]}")
 
     def get_castling_moves(self, player, row, col):
         castling_moves = []
@@ -454,18 +365,7 @@ class Game:
         return en_passant_moves
 
     
-    def make_move(self, row1, col1, row2, col2, promotion_choice=None):
-
-        from_pos = convert_to_chess_notation(row1, col1)
-        to_pos = convert_to_chess_notation(row2, col2)
-
-        if not (0 <= row1 < 8 and 0 <= col1 < 8):
-            print("invalid FROM position")
-            return
-
-        if not (0 <= row2 < 8 and 0 <= col2 < 8):
-            print("invalid TO position")
-            return
+    def make_move(self, row1, col1, row2, col2, promotion_choice="q"):
         
         moving_piece = self.board[row1][col1]
 
@@ -503,7 +403,6 @@ class Game:
         # update castling/en passant state
         self.update_special_move_state(moving_piece, row1, col1, row2, col2)
 
-        print(f"{self.current_p} moves from {from_pos} to {to_pos}")
         self.switch_turn()
 
     def get_moves_for_player(self, player):
