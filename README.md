@@ -1,96 +1,186 @@
-# Python Chess Engine (Command-Line)
+# Python Chess Game
 
-A fully custom chess game built in Python with no external chess libraries. This project is being developed as a learning and portfolio piece to demonstrate software engineering fundamentals, object-oriented programming, algorithm design, and AI implementation.
+A fully custom chess game built in Python with a PySide6 Qt graphical interface. The chess engine, move validation, special rules, bot logic, database system, and GUI were built manually without using external chess libraries.
+
+This project is being developed as a learning and portfolio piece to demonstrate software engineering fundamentals, object-oriented programming, GUI development, database integration, algorithm design, and chess AI implementation.
 
 ---
 
 # Project Structure
 
-The project is currently split into two main areas:
-
-```
+```text
 chess/
-│   Core chess engine (final implementation)
-│   - board logic
-│   - piece movement rules
-│   - game controller
-│   - Chess bot integration
+│
+├── main.py
+│   Application entry point
+│
+├── chess_interface.py
+│   PySide6 GUI for the chess board and side panel
+│
+├── game.py
+│   Main game controller and chess rules engine
+│
+├── pieces.py
+│   Piece classes and movement logic
+│
+├── move_validator.py
+│   Move and player validation helpers
+│
+├── utils.py
+│   Coordinate conversion, bot turn helpers, and utility functions
+│
+├── board.py
+│   Board creation and board-related helpers
+│
+├── player.py
+│   Player model
+│
+├── database.py
+│   SQLite database logic for players and saved games
+│
+├── login_dialog.py
+│   Login, sign-up, and guest access screen
+│
+├── theme.py
+│   Application-wide GUI styling
+│
+└── assets/
+    └── pieces/
+        SVG chess piece icons
+
 practice/
-│   Experimental and learning code
-│   - prototype chess engine
-│   - feature testing
+│
+└── Experimental and prototype code used during early development
 ```
 
 ---
 
 # Current Features
 
+## Graphical User Interface
+
+* PySide6 Qt-based desktop GUI
+* Click-to-select piece movement
+* Legal move highlighting
+* Last-move highlighting
+* Check highlighting on the king square
+* Chess coordinate labels around the board
+* Optional board rotation when playing as black
+* Move history side panel
+* Captured pieces panel with icons
+* Restart and quit controls
+* Styled dialogs and popups using a shared application theme
+* Game-over popup messages for checkmate, stalemate, and timeout
+
+---
+
 ## Chess Engine Core
 
-- 8x8 board representation using a 2D list
-- Coordinate-based input system (e.g. e2 → e4)
-- Turn-based system (White / Black)
-- Piece ownership validation
-- Legal move generation system
-- Move highlighting on board using `#`
-- Move listing in chess notation (e.g. A3, E5)
-- Capture detection logic
-- Fully implemented movement rules for:
-  - Pawn
-  - Rook
-  - Knight
-  - Queen
-  - King
-  - bishop
+* 8x8 board representation using a 2D list
+* Turn-based system for White and Black
+* Piece ownership validation
+* Legal move generation
+* Move simulation and undo logic for legality checking
+* Capture detection
+* Check detection
+* Checkmate detection
+* Stalemate detection
 
-- Check detection
-- Checkmate detection
-- Stalemate detection
-- Move undo system
-- Castling
-- En passant
-- Pawn promotion
+Fully implemented movement rules for:
 
-- Player vs AI mode
-- Easy AI (less sophisticated greedy algorithm)
-- Medium AI (material based evaluation with greedy algorithm)
-- Hard AI (minimax search algorithm)
-- Alpha-beta pruning optimization
-- Save / load game state for bot games
+* Pawn
+* Rook
+* Knight
+* Bishop
+* Queen
+* King
+
+Special chess rules implemented:
+
+* Castling
+* En passant
+* Pawn promotion
+* Prevention of illegal king exposure
+* Prevention of king capture
 
 ---
 
-# Practice / Development Work
+## Bot / AI System
 
-The `practice/` folder contains:
-- Early-stage full game prototype
-- Feature testing environment
-- Refactoring and design exploration
+The project includes three bot difficulty levels:
 
-This is used to test features before integrating them into the main engine.
+### Easy Bot
+
+* Basic move selection
+* Prioritises simple captures
+* Uses lightweight greedy logic
+
+### Medium Bot
+
+* Material-based move evaluation
+* Rewards captures, development, centre control, promotion, castling, and checks
+* Penalises unsafe moves
+
+### Hard Bot
+
+* Minimax search algorithm
+* Alpha-beta pruning
+* Board evaluation function
+* Move ordering
+* Search depth adjusted based on remaining pieces
 
 ---
 
-# Planned Features
+## Database and Account System
 
-## Additional Systems
-- Game history tracking
-- Chess clock / timer system
+* SQLite database integration
+* Player account table
+* Saved games table
+* Login screen
+* Sign-up screen
+* Guest mode
+* Password hashing
+* Stored player statistics:
 
+  * ELO
+  * Wins
+  * Losses
+  * Draws
+
+The database layer supports saving and loading game state, including:
+
+* Board state
+* Current turn
+* Bot difficulty
+* Bot colour
+* Time settings
+* Remaining player time
+
+---
+
+## Chess Clock
+
+* User chooses time limit before the game starts
+* Separate countdown timer for each player
+* Active player's timer decreases during their turn
+* Timeout ends the game
+* Timeout result is shown in the status bar and popup dialog
 
 ---
 
 # Technologies Used
 
-- Python
-- Object-Oriented Programming (OOP)
-- 2D array-based game state
-- Algorithm design (move generation + validation)
-- Git version control
-- GitHub for remote repository management
-- Visual Studio Code
-- SQLite 3
-- PySide6
+* Python
+* PySide6
+* SQLite3
+* Object-Oriented Programming
+* 2D array-based board state
+* Custom chess rules engine
+* Minimax algorithm
+* Alpha-beta pruning
+* Git version control
+* GitHub
+* Visual Studio Code
 
 ---
 
@@ -108,7 +198,13 @@ Navigate into the project:
 cd YOUR_REPO
 ```
 
-Run the game:
+Install dependencies:
+
+```bash
+pip install PySide6
+```
+
+Run the application:
 
 ```bash
 python chess/main.py
@@ -118,18 +214,50 @@ python chess/main.py
 
 # Development Philosophy
 
-This project is being built incrementally, focusing on:
+This project is being built incrementally with a focus on:
 
-- Correct chess rules implementation first
-- Clean separation of logic (board, pieces, game controller)
-- Gradual refactoring from prototype → production structure
-- Future expansion into AI-driven gameplay
+* Building the chess engine manually instead of relying on chess libraries
+* Keeping game rules separate from the GUI
+* Maintaining clear separation between board logic, piece logic, game control, database logic, and interface code
+* Developing features first in small testable steps
+* Gradually improving the user experience through GUI polish
+* Using the project as a portfolio demonstration of practical Python software development
 
 ---
 
 # Current Status
 
-The project is in active development.
+The core chess game is playable through the PySide6 GUI.
+
+Implemented systems include:
+
+* Full legal piece movement
+* Special chess rules
+* Check, checkmate, and stalemate detection
+* Bot play with multiple difficulty levels
+* Login/sign-up/guest flow
+* SQLite database layer
+* Chess clock
+* Move history
+* Captured pieces display
+* Styled interface elements
+
+---
+
+# Known Limitations / Future Improvements
+
+Planned or future improvements include:
+
+* Threefold repetition detection
+* Fifty-move rule
+* Insufficient material detection
+* Full GUI save/load game screen
+* ELO updates after completed games
+* Improved move notation
+* Better bot performance tuning
+* Settings menu
+* Packaged executable release
+* Unit tests for the chess engine
 
 ---
 

@@ -13,6 +13,7 @@ class Game:
         self.current_p = "white"
         self.turn_count = 0
         self.legal_moves = []
+        self.last_captured_piece = None
 
         self.players = {
             "white": pWhite,
@@ -366,6 +367,8 @@ class Game:
 
     
     def make_move(self, row1, col1, row2, col2, promotion_choice="q"):
+
+        self.last_captured_piece = None
         
         moving_piece = self.board[row1][col1]
 
@@ -378,6 +381,8 @@ class Game:
             captured_piece = self.board[row2][col2]
 
         if captured_piece != "-":
+            self.last_captured_piece = captured_piece
+            
             points = piece_values[captured_piece.lower()]
             
             currP = self.get_current_player()

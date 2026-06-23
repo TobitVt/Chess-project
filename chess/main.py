@@ -4,37 +4,40 @@ from pieces import *
 from player import *
 from utils import *
 from database import *
+from login import *
 
 import sys
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QDialog
 
 from game import Game
 from chess_interface import ChessBoard
+from theme import APP_STYLE
 
 
 ###############  game code: ####################################################
 
 create_tables()
 
-player1 = Player("Player 1 / white")
-player2 = Player("Player 2 / black")
+app = QApplication(sys.argv)
+app.setStyleSheet(APP_STYLE)
 
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
+login_dialog = LoginDialog()
 
-    chess_game = Game(chess_board, player1, player2)
+if login_dialog.exec() != QDialog.Accepted:
+    sys.exit()
 
-    window = ChessBoard(chess_game)
-    window.show()
+logged_in_player = login_dialog.player_info
 
-    sys.exit(app.exec())
+player1 = Player(f"{logged_in_player['username']} / white")
+player2 = Player("Bot / black")
+
+chess_game = Game(chess_board, player1, player2)
+
+window = ChessBoard(chess_game, logged_in_player)
+window.show()
+
+sys.exit(app.exec())
 
 
-# add: captured list with icons
-# timer
-# log in/sign up
-# piece capture in move history
-# create pop up for game end like checkmate(white loss/win and reason, etc)
-
-# remove: redundant console code
+# done: # log in/sign up, timer, create pop up for game end reason, captured list with icons, update ReadMe

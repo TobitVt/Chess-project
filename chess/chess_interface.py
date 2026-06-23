@@ -11,7 +11,9 @@ from PySide6.QtWidgets import (
     QLabel,
     QHBoxLayout,
     QVBoxLayout,
-    QListWidget
+    QListWidget,
+    QMessageBox,
+    QListWidgetItem
 )
 
 from pathlib import Path
@@ -49,51 +51,62 @@ piece_images = {
 
 
 class ChessBoard(QMainWindow):
-    def __init__(self, game):
+    def __init__(self, game, logged_in_player):
         super().__init__()
 
         self.game = game
+
+        self.logged_in_player = logged_in_player
+        self.player_id = logged_in_player["player_id"]
+        self.username = logged_in_player["username"]
+        self.is_guest = logged_in_player["is_guest"]
+
         self.buttons = []
         self.selected = None
         self.selected_moves = []
         self.last_move = None
         self.move_history = []
 
+        self.white_captured_pieces = []
+        self.black_captured_pieces = []
+
+        self.time_limit_seconds = 0
+        self.white_time_left = 0
+        self.black_time_left = 0
+
+        self.clock_timer = QTimer(self)
+        self.clock_timer.timeout.connect(self.update_chess_clock)
+
         self.game_over = False
+        self.game_end_popup_shown = False
 
         # ask user for bot color
-        chosen_colour, accepted = QInputDialog.getItem(
-            self,
-            "Choose colour",
-            "Play as:",
-            ["White", "Black"],
-            0,
-            False
-        )
+        chosen_colour, accepted = QInputDialog.getItem(self, "Choose colour", "Play as:", ["White", "Black"], 0, False)
 
         if accepted:
             self.human_player = chosen_colour.lower()
         else:
             self.human_player = "white"
 
-        self.bot_player = (
-            "black" if self.human_player == "white" else "white"
-        )
+        self.bot_player = ("black" if self.human_player == "white" else "white")
         
         # ask user for bot difficulty
-        difficulty, accepted = QInputDialog.getItem(
-            self,
-            "Choose difficulty",
-            "Select bot difficulty:",
-            ["Easy", "Medium", "Hard"],
-            0,
-            False
-        )
+        difficulty, accepted = QInputDialog.getItem(self, "Choose difficulty", "Select bot difficulty:", ["Easy", "Medium", "Hard"], 0, False)
 
         if accepted:
             self.bot_difficulty = difficulty.lower()
         else:
             self.bot_difficulty = "easy"
+
+        minutes, accepted = QInputDialog.getInt(self, "Choose time limit", "Minutes per player:", 10, 1, 180, 1)
+
+        if accepted:
+            self.time_limit_seconds = minutes * 60
+        else:
+            self.time_limit_seconds = 10 * 60
+
+        self.white_time_left = self.time_limit_seconds
+        self.black_time_left = self.time_limit_seconds
 
         # create main window
 
@@ -119,12 +132,8 @@ class ChessBoard(QMainWindow):
                 block.setMinimumSize(100, 110)
                 block.setIconSize(QSize(75, 75))
 
-                block.clicked.connect(
-                    lambda checked=False, display_row=row, display_col=col:
-                    self.handle_square_click(
-                        *self.display_to_board(display_row, display_col)
-                    )
-                )
+                block.clicked.connect(lambda checked=False, display_row=row, display_col=col:
+                    self.handle_square_click(*self.display_to_board(display_row, display_col)))
 
                 # add widgets to grid and buttons to list
                 board_layout.addWidget(block, row+1, col+1)
@@ -159,6 +168,7 @@ class ChessBoard(QMainWindow):
             label = self.create_coordinate_label(ranks[row])
             board_layout.addWidget(label, row + 1, 9)
 
+
         history_title = QLabel("Move History")
         history_title.setAlignment(Qt.AlignCenter)
         history_title.setStyleSheet("""
@@ -181,6 +191,119 @@ class ChessBoard(QMainWindow):
                 padding: 5px;
             }
         """)
+
+        profile_label = QLabel(
+            f"Player: {self.username}\n"
+            f"ELO: {self.logged_in_player['elo']}\n"
+            f"Wins: {self.logged_in_player['wins']}  "
+            f"Losses: {self.logged_in_player['losses']}  "
+            f"Draws: {self.logged_in_player['draws']}"
+        )
+
+        profile_label.setAlignment(Qt.AlignCenter)
+        profile_label.setStyleSheet("""
+            QLabel {
+                font-size: 15px;
+                font-weight: bold;
+                color: white;
+                background-color: #2E2E2E;
+                border: 2px solid #5D4037;
+                padding: 10px;
+            }
+        """)
+
+        side_layout.addWidget(profile_label)
+
+        timer_title = QLabel("Timers")
+        timer_title.setAlignment(Qt.AlignCenter)
+        timer_title.setStyleSheet("""
+            QLabel {
+                font-size: 20px;
+                font-weight: bold;
+                color: white;
+                padding: 10px;
+            }
+        """)
+
+        self.white_timer_label = QLabel()
+        self.black_timer_label = QLabel()
+
+        timer_label_style = """
+            QLabel {
+                font-size: 18px;
+                font-weight: bold;
+                color: white;
+                background-color: #2E2E2E;
+                border: 2px solid #5D4037;
+                padding: 8px;
+            }
+        """
+
+        self.white_timer_label.setStyleSheet(timer_label_style)
+        self.black_timer_label.setStyleSheet(timer_label_style)
+
+        self.white_timer_label.setAlignment(Qt.AlignCenter)
+        self.black_timer_label.setAlignment(Qt.AlignCenter)
+
+        side_layout.addWidget(timer_title)
+        side_layout.addWidget(self.white_timer_label)
+        side_layout.addWidget(self.black_timer_label)
+
+        captured_title = QLabel("Captured Pieces")
+        captured_title.setAlignment(Qt.AlignCenter)
+        captured_title.setStyleSheet("""
+            QLabel {
+                font-size: 20px;
+                font-weight: bold;
+                color: white;
+                padding: 10px;
+            }
+        """)
+
+        white_captured_label = QLabel("White captured")
+        black_captured_label = QLabel("Black captured")
+
+        white_captured_label.setAlignment(Qt.AlignCenter)
+        black_captured_label.setAlignment(Qt.AlignCenter)
+
+        label_style = """
+            QLabel {
+                font-size: 15px;
+                font-weight: bold;
+                color: white;
+            }
+        """
+
+        white_captured_label.setStyleSheet(label_style)
+        black_captured_label.setStyleSheet(label_style)
+
+        self.white_captured_list = QListWidget()
+        self.black_captured_list = QListWidget()
+
+        captured_list_style = """
+            QListWidget {
+                font-size: 14px;
+                background-color: #2E2E2E;
+                color: white;
+                border: 2px solid #5D4037;
+                padding: 4px;
+            }
+        """
+
+        self.white_captured_list.setStyleSheet(captured_list_style)
+        self.black_captured_list.setStyleSheet(captured_list_style)
+
+        self.white_captured_list.setIconSize(QSize(28, 28))
+        self.black_captured_list.setIconSize(QSize(28, 28))
+
+        self.white_captured_list.setMaximumHeight(120)
+        self.black_captured_list.setMaximumHeight(120)
+
+        side_layout.addWidget(captured_title)
+        side_layout.addWidget(white_captured_label)
+        side_layout.addWidget(self.white_captured_list)
+        side_layout.addWidget(black_captured_label)
+        side_layout.addWidget(self.black_captured_list)
 
         side_layout.addWidget(history_title)
         side_layout.addWidget(self.history_list)
@@ -234,6 +357,9 @@ class ChessBoard(QMainWindow):
 
         self.refresh_board()
         self.update_game_status()
+        self.update_timer_labels()
+
+        self.clock_timer.start(1000)
 
         # The white bot must make the opening move
         if self.bot_player == "white":
@@ -303,10 +429,7 @@ class ChessBoard(QMainWindow):
 
         for display_row in range(8):
             for display_col in range(8):
-                board_row, board_col = self.display_to_board(
-                    display_row,
-                    display_col
-                )
+                board_row, board_col = self.display_to_board(display_row, display_col)
 
                 button = self.buttons[display_row][display_col]
                 piece = self.game.board[board_row][board_col]
@@ -345,6 +468,8 @@ class ChessBoard(QMainWindow):
                     QPushButton {{
                         background-color: {colour};
                         border: none;
+                        border-radius: 0px;
+                        padding: 0px;
                     }}
                 """)
 
@@ -357,29 +482,34 @@ class ChessBoard(QMainWindow):
 
         if in_check and not has_legal_moves:
             winner = "Black" if player == "white" else "White"
+            message = f"Checkmate! {winner} wins."
 
-            self.statusBar().showMessage(
-                f"Checkmate! {winner} wins."
-            )
+            self.statusBar().showMessage(message)
 
             self.game_over = True
+
+            if hasattr(self, "clock_timer"):
+                self.clock_timer.stop()
+
+            self.show_game_end_popup( "Game Over", message)
 
         elif not in_check and not has_legal_moves:
-            self.statusBar().showMessage(
-                "Stalemate! The game is a draw."
-            )
+            message = "Stalemate! The game is a draw."
+
+            self.statusBar().showMessage(message)
 
             self.game_over = True
 
+            if hasattr(self, "clock_timer"):
+                self.clock_timer.stop()
+
+            self.show_game_end_popup("Game Over", message)
+
         elif in_check:
-            self.statusBar().showMessage(
-                f"{player_name} is in check!"
-            )
+            self.statusBar().showMessage(f"{player_name} is in check!")
 
         else:
-            self.statusBar().showMessage(
-                f"{player_name}'s turn"
-            )
+            self.statusBar().showMessage(f"{player_name}'s turn")
 
     def run_bot_turn(self):
         if self.game_over:
@@ -396,16 +526,17 @@ class ChessBoard(QMainWindow):
         if last_move is not None:
             self.last_move = last_move
 
+            captured_piece = self.game.last_captured_piece
+
+            self.add_captured_piece(moving_player, captured_piece)
+
         self.refresh_board()
         self.update_game_status()
+        self.update_timer_labels()
 
 
     def restart_game(self):
-        QProcess.startDetached(
-            sys.executable,
-            sys.argv,
-            os.getcwd()
-        )
+        QProcess.startDetached(sys.executable, sys.argv, os.getcwd())
 
         QApplication.quit()
 
@@ -433,14 +564,7 @@ class ChessBoard(QMainWindow):
             if moving_piece.lower() == "p" and row in (0, 7):
                 options = ["Queen", "Rook", "Bishop", "Knight"]
 
-                selected_option, accepted = QInputDialog.getItem(
-                    self,
-                    "Pawn promotion",
-                    "Promote pawn to:",
-                    options,
-                    0,
-                    False
-                )
+                selected_option, accepted = QInputDialog.getItem(self, "Pawn promotion", "Promote pawn to:", options, 0, False)
 
                 if not accepted:
                     return
@@ -458,6 +582,10 @@ class ChessBoard(QMainWindow):
 
             self.game.make_move(start_row, start_col, row, col, promotion_choice)
 
+            captured_piece = self.game.last_captured_piece
+
+            self.add_captured_piece(moving_player, captured_piece)
+
             self.add_move_to_history(moving_player, start_row, start_col, row, col)
 
             self.last_move = [(start_row, start_col),(row, col)]
@@ -467,6 +595,7 @@ class ChessBoard(QMainWindow):
 
             self.refresh_board()
             self.update_game_status()
+            self.update_timer_labels()
 
             
             if not self.game_over:
@@ -508,3 +637,109 @@ class ChessBoard(QMainWindow):
         print("Valid moves:", self.selected_moves)
 
         self.refresh_board()
+
+    def format_time(self, seconds):
+        seconds = max(0, seconds)
+
+        minutes = seconds // 60
+        remaining_seconds = seconds % 60
+
+        return f"{minutes:02d}:{remaining_seconds:02d}"
+
+
+    def update_timer_labels(self):
+        white_marker = "▶ " if self.game.current_p == "white" else ""
+        black_marker = "▶ " if self.game.current_p == "black" else ""
+
+        self.white_timer_label.setText(f"{white_marker}White: {self.format_time(self.white_time_left)}")
+
+        self.black_timer_label.setText(f"{black_marker}Black: {self.format_time(self.black_time_left)}")
+
+
+    def update_chess_clock(self):
+        if self.game_over:
+            self.clock_timer.stop()
+            return
+
+        if self.game.current_p == "white":
+            self.white_time_left -= 1
+
+            if self.white_time_left <= 0:
+                self.white_time_left = 0
+                self.game_over = True
+                self.clock_timer.stop()
+                self.selected = None
+                self.selected_moves = []
+                self.update_timer_labels()
+                self.refresh_board()
+                
+                message = "White ran out of time. Black wins!"
+
+                self.statusBar().showMessage(message)
+
+                self.show_game_end_popup("Time Out", message)
+                                
+                return
+
+        else:
+            self.black_time_left -= 1
+
+            if self.black_time_left <= 0:
+                self.black_time_left = 0
+                self.game_over = True
+                self.clock_timer.stop()
+                self.selected = None
+                self.selected_moves = []
+                self.update_timer_labels()
+                self.refresh_board()
+                
+                message = "Black ran out of time. White wins!"
+
+                self.statusBar().showMessage(message)
+
+                self.show_game_end_popup("Time Out", message)
+                
+                return
+
+        self.update_timer_labels()
+
+    def show_game_end_popup(self, title, message):
+        if self.game_end_popup_shown:
+            return
+
+        self.game_end_popup_shown = True
+
+        QMessageBox.information(self, title, message)
+
+    def get_piece_display_name(self, piece):
+        piece_names = {
+            "p": "Pawn",
+            "r": "Rook",
+            "n": "Knight",
+            "b": "Bishop",
+            "q": "Queen",
+            "k": "King"
+        }
+
+        colour = "White" if piece.isupper() else "Black"
+        name = piece_names[piece.lower()]
+
+        return f"{colour} {name}"
+
+
+    def add_captured_piece(self, capturing_player, captured_piece):
+        if captured_piece is None or captured_piece == "-":
+            return
+
+        item = QListWidgetItem(self.get_piece_display_name(captured_piece))
+
+        image_path = ASSETS_PATH / piece_images[captured_piece]
+        item.setIcon(QIcon(str(image_path)))
+
+        if capturing_player == "white":
+            self.white_captured_pieces.append(captured_piece)
+            self.white_captured_list.addItem(item)
+
+        else:
+            self.black_captured_pieces.append(captured_piece)
+            self.black_captured_list.addItem(item)

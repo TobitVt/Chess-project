@@ -146,3 +146,26 @@ def load_saved_game(save_id):
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
+
+
+def verify_login(u_name, p_word):
+    user_info = get_player(u_name)
+
+    if user_info is None:
+        return None
+
+    entered_password_hash = hash_password(p_word)
+    stored_hashed_password = user_info[2]
+
+    if entered_password_hash != stored_hashed_password:
+        return None
+
+    return {
+        "player_id": user_info[0],
+        "username": user_info[1],
+        "elo": user_info[3],
+        "wins": user_info[4],
+        "losses": user_info[5],
+        "draws": user_info[6],
+        "is_guest": False
+    }
