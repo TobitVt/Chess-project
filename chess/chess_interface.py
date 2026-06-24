@@ -25,6 +25,7 @@ from pieces import create_piece_object
 
 from move_validator import *
 from utils import *
+from elo import *
 
 # stores path to piece images in global variable
 ASSETS_PATH = Path(__file__).resolve().parent.parent / "assets" / "pieces"
@@ -51,7 +52,7 @@ piece_images = {
 
 
 class ChessBoard(QMainWindow):
-    def __init__(self, game, logged_in_player):
+    def __init__(self, game, logged_in_player, game_settings):
         super().__init__()
 
         self.game = game
@@ -60,6 +61,17 @@ class ChessBoard(QMainWindow):
         self.player_id = logged_in_player["player_id"]
         self.username = logged_in_player["username"]
         self.is_guest = logged_in_player["is_guest"]
+
+        self.game_settings = game_settings
+
+        self.game_mode = game_settings["mode"]
+        self.human_player = game_settings["human_colour"]
+        self.bot_player = game_settings["bot_colour"]
+        self.bot_difficulty = game_settings["bot_difficulty"]
+
+        self.time_limit_seconds = game_settings["time_limit_seconds"]
+        self.white_time_left = self.time_limit_seconds
+        self.black_time_left = self.time_limit_seconds
 
         self.buttons = []
         self.selected = None
@@ -70,43 +82,12 @@ class ChessBoard(QMainWindow):
         self.white_captured_pieces = []
         self.black_captured_pieces = []
 
-        self.time_limit_seconds = 0
-        self.white_time_left = 0
-        self.black_time_left = 0
-
         self.clock_timer = QTimer(self)
         self.clock_timer.timeout.connect(self.update_chess_clock)
 
         self.game_over = False
         self.game_end_popup_shown = False
-
-        # ask user for bot color
-        chosen_colour, accepted = QInputDialog.getItem(self, "Choose colour", "Play as:", ["White", "Black"], 0, False)
-
-        if accepted:
-            self.human_player = chosen_colour.lower()
-        else:
-            self.human_player = "white"
-
-        self.bot_player = ("black" if self.human_player == "white" else "white")
-        
-        # ask user for bot difficulty
-        difficulty, accepted = QInputDialog.getItem(self, "Choose difficulty", "Select bot difficulty:", ["Easy", "Medium", "Hard"], 0, False)
-
-        if accepted:
-            self.bot_difficulty = difficulty.lower()
-        else:
-            self.bot_difficulty = "easy"
-
-        minutes, accepted = QInputDialog.getInt(self, "Choose time limit", "Minutes per player:", 10, 1, 180, 1)
-
-        if accepted:
-            self.time_limit_seconds = minutes * 60
-        else:
-            self.time_limit_seconds = 10 * 60
-
-        self.white_time_left = self.time_limit_seconds
-        self.black_time_left = self.time_limit_seconds
+        self.elo_applied = False
 
         # create main window
 
@@ -192,16 +173,10 @@ class ChessBoard(QMainWindow):
             }
         """)
 
-        profile_label = QLabel(
-            f"Player: {self.username}\n"
-            f"ELO: {self.logged_in_player['elo']}\n"
-            f"Wins: {self.logged_in_player['wins']}  "
-            f"Losses: {self.logged_in_player['losses']}  "
-            f"Draws: {self.logged_in_player['draws']}"
-        )
+        self.profile_label = QLabel()
 
-        profile_label.setAlignment(Qt.AlignCenter)
-        profile_label.setStyleSheet("""
+        self.profile_label.setAlignment(Qt.AlignCenter)
+        self.profile_label.setStyleSheet("""
             QLabel {
                 font-size: 15px;
                 font-weight: bold;
@@ -212,7 +187,9 @@ class ChessBoard(QMainWindow):
             }
         """)
 
-        side_layout.addWidget(profile_label)
+        self.update_profile_label()
+
+        side_layout.addWidget(self.profile_label)
 
         timer_title = QLabel("Timers")
         timer_title.setAlignment(Qt.AlignCenter)
@@ -362,7 +339,7 @@ class ChessBoard(QMainWindow):
         self.clock_timer.start(1000)
 
         # The white bot must make the opening move
-        if self.bot_player == "white":
+        if self.game_mode == "bot" and self.bot_player == "white":
             QTimer.singleShot(500, self.run_bot_turn)
             
 
@@ -416,11 +393,12 @@ class ChessBoard(QMainWindow):
 
     def refresh_board(self):
 
-        self.setWindowTitle(
-            f"Chess - {self.human_player.capitalize()} vs "
-            f"{self.bot_difficulty.capitalize()} bot - "
-            f"{self.game.current_p.capitalize()}'s turn"
-        )
+        if self.game_mode == "bot":
+            title_mode = (f"{self.human_player.capitalize()} vs "f"{self.bot_difficulty.capitalize()} bot")
+        else:
+            title_mode = "Player vs Player"
+
+        self.setWindowTitle(f"Chess - {title_mode} - "f"{self.game.current_p.capitalize()}'s turn")
 
         checked_king = None
 
@@ -482,7 +460,21 @@ class ChessBoard(QMainWindow):
 
         if in_check and not has_legal_moves:
             winner = "Black" if player == "white" else "White"
+            winner_color = winner.lower()
+
             message = f"Checkmate! {winner} wins."
+
+            result = {
+                "outcome": "checkmate",
+                "winner": winner_color
+            }
+
+            elo_message = self.apply_elo_result(result)
+
+            popup_message = message
+
+            if elo_message is not None:
+                popup_message += f"\n\n{elo_message}"
 
             self.statusBar().showMessage(message)
 
@@ -491,11 +483,23 @@ class ChessBoard(QMainWindow):
             if hasattr(self, "clock_timer"):
                 self.clock_timer.stop()
 
-            self.show_game_end_popup( "Game Over", message)
+            self.show_game_end_popup("Game Over", popup_message)
 
         elif not in_check and not has_legal_moves:
             message = "Stalemate! The game is a draw."
 
+            result = {
+                "outcome": "draw",
+                "winner": None
+            }
+
+            elo_message = self.apply_elo_result(result)
+
+            popup_message = message
+
+            if elo_message is not None:
+                popup_message += f"\n\n{elo_message}"
+
             self.statusBar().showMessage(message)
 
             self.game_over = True
@@ -503,7 +507,7 @@ class ChessBoard(QMainWindow):
             if hasattr(self, "clock_timer"):
                 self.clock_timer.stop()
 
-            self.show_game_end_popup("Game Over", message)
+            self.show_game_end_popup("Game Over", popup_message)
 
         elif in_check:
             self.statusBar().showMessage(f"{player_name} is in check!")
@@ -515,20 +519,32 @@ class ChessBoard(QMainWindow):
         if self.game_over:
             return
 
+        if self.game_mode != "bot":
+            return
+
+        if self.game.current_p != self.bot_player:
+            return
+
         moving_player = self.game.current_p
+
         last_move = perform_bot_turn(self.game, self.bot_difficulty)
+
+        if last_move is None:
+            self.refresh_board()
+            self.update_game_status()
+            self.update_timer_labels()
+            return
+
+        self.last_move = last_move
 
         start_row, start_col = last_move[0]
         end_row, end_col = last_move[1]
 
         self.add_move_to_history(moving_player, start_row, start_col, end_row, end_col)
 
-        if last_move is not None:
-            self.last_move = last_move
+        captured_piece = self.game.last_captured_piece
 
-            captured_piece = self.game.last_captured_piece
-
-            self.add_captured_piece(moving_player, captured_piece)
+        self.add_captured_piece(moving_player, captured_piece)
 
         self.refresh_board()
         self.update_game_status()
@@ -545,7 +561,7 @@ class ChessBoard(QMainWindow):
         if self.game_over:
             return  
         
-        if self.game.current_p == self.bot_player:
+        if self.game_mode == "bot" and self.game.current_p == self.bot_player:
             return
         
         piece = self.game.board[row][col]
@@ -598,7 +614,7 @@ class ChessBoard(QMainWindow):
             self.update_timer_labels()
 
             
-            if not self.game_over:
+            if (self.game_mode == "bot" and not self.game_over and self.game.current_p == self.bot_player):
                 QTimer.singleShot(500, self.run_bot_turn)
 
             return
@@ -675,9 +691,21 @@ class ChessBoard(QMainWindow):
                 
                 message = "White ran out of time. Black wins!"
 
+                result = {
+                    "outcome": "timeout",
+                    "winner": "black"
+                }
+
+                elo_message = self.apply_elo_result(result)
+
+                popup_message = message
+
+                if elo_message is not None:
+                    popup_message += f"\n\n{elo_message}"
+
                 self.statusBar().showMessage(message)
 
-                self.show_game_end_popup("Time Out", message)
+                self.show_game_end_popup("Time Out", popup_message)
                                 
                 return
 
@@ -695,9 +723,21 @@ class ChessBoard(QMainWindow):
                 
                 message = "Black ran out of time. White wins!"
 
+                result = {
+                    "outcome": "timeout",
+                    "winner": "white"
+                }
+
+                elo_message = self.apply_elo_result(result)
+
+                popup_message = message
+
+                if elo_message is not None:
+                    popup_message += f"\n\n{elo_message}"
+
                 self.statusBar().showMessage(message)
 
-                self.show_game_end_popup("Time Out", message)
+                self.show_game_end_popup("Time Out", popup_message)
                 
                 return
 
@@ -743,3 +783,54 @@ class ChessBoard(QMainWindow):
         else:
             self.black_captured_pieces.append(captured_piece)
             self.black_captured_list.addItem(item)
+
+    def apply_elo_result(self, result):
+        if self.elo_applied:
+            return None
+
+        if self.is_guest or self.player_id is None:
+            return None
+
+        human_color = self.human_player
+
+        if human_color not in self.game.players:
+            return None
+
+        human_player_object = self.game.players[human_color]
+
+        elo_result = apply_game_result_elo(self.game, result, human_player_object, self.player_id)
+
+        if elo_result is None:
+            return None
+
+        self.elo_applied = True
+
+        new_elo = elo_result["new_elo"]
+        outcome = elo_result["outcome"]
+        elo_change = elo_result["elo_change"]
+
+        self.logged_in_player["elo"] = new_elo
+
+        if outcome == "win":
+            self.logged_in_player["wins"] += 1
+        elif outcome == "draw":
+            self.logged_in_player["draws"] += 1
+        else:
+            self.logged_in_player["losses"] += 1
+
+        if hasattr(self, "update_profile_label"):
+            self.update_profile_label()
+
+        if elo_change >= 0:
+            return f"Your ELO is now {new_elo} (+{elo_change})."
+
+        return f"Your ELO is now {new_elo} ({elo_change})."
+    
+    def update_profile_label(self):
+        self.profile_label.setText(
+            f"Player: {self.username}\n"
+            f"ELO: {self.logged_in_player['elo']}\n"
+            f"Wins: {self.logged_in_player['wins']}  "
+            f"Losses: {self.logged_in_player['losses']}  "
+            f"Draws: {self.logged_in_player['draws']}"
+        )

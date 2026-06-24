@@ -18,8 +18,18 @@ QDialog QComboBox {
     color: white;
     border: 2px solid #5D4037;
     border-radius: 8px;
-    padding: 7px;
+    padding: 5px 12px;
     font-size: 15px;
+}
+
+QDialog QComboBox::drop-down {
+    width: 32px;
+    border-left: 1px solid #5D4037;
+}
+
+QDialog QComboBox::down-arrow {
+    width: 12px;
+    height: 12px;
 }
 
 QDialog QLineEdit:focus,

@@ -221,6 +221,4 @@ class LoginDialog(QDialog):
             "is_guest": True
         }
 
-        QMessageBox.information(self, "Guest mode", "Welcome to the chess app. Enjoy and good luck.")
-
         self.accept()

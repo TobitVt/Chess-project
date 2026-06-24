@@ -241,6 +241,7 @@ Implemented systems include:
 * Move history
 * Captured pieces display
 * Styled interface elements
+* ELO updates after completed games
 
 ---
 
@@ -252,7 +253,6 @@ Planned or future improvements include:
 * Fifty-move rule
 * Insufficient material detection
 * Full GUI save/load game screen
-* ELO updates after completed games
 * Improved move notation
 * Better bot performance tuning
 * Settings menu
