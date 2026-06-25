@@ -9,48 +9,66 @@ This project is being developed as a learning and portfolio piece to demonstrate
 # Project Structure
 
 ```text
-chess/
+PORTFOLIO PROJECT 1 - CHESS/
 │
-├── main.py
-│   Application entry point
+├── assets/
+│   └── pieces/
+│       Chess piece SVG files used by the GUI
 │
-├── chess_interface.py
-│   PySide6 GUI for the chess board and side panel
+├── chess/
+│   ├── main.py
+│   │   Starts the application and connects the main screens together
+│   │
+│   ├── chess_interface.py
+│   │   Main PySide6 chess board interface
+│   │
+│   ├── game.py
+│   │   Handles the game state, turns, legal moves, check, checkmate,
+│   │   castling, en passant, promotion, and bot moves
+│   │
+│   ├── pieces.py
+│   │   Piece classes and movement rules
+│   │
+│   ├── move_validator.py
+│   │   Helper functions for checking valid player input and piece ownership
+│   │
+│   ├── utils.py
+│   │   Coordinate conversion and small helper functions
+│   │
+│   ├── board.py
+│   │   Creates the starting board and stores board-related helpers
+│   │
+│   ├── player.py
+│   │   Basic player class
+│   │
+│   ├── database.py
+│   │   SQLite database functions for accounts, saved games, and player stats
+│   │
+│   ├── login.py
+│   │   Login, sign-up, and guest access dialog
+│   │
+│   ├── main_menu.py
+│   │   Main menu for choosing game mode, bot settings, time limit,
+│   │   and saved games
+│   │
+│   ├── elo.py
+│   │   ELO calculation and rating update functions
+│   │
+│   ├── theme.py
+│   │   Shared GUI styling
+│   │
+│   └── screenshots/
+│       Screenshots used in the README
 │
-├── game.py
-│   Main game controller and chess rules engine
+├── practice/
+│   Early test files and prototypes from before the GUI version
 │
-├── pieces.py
-│   Piece classes and movement logic
+├── chess_game.db
+│   Local SQLite database file
 │
-├── move_validator.py
-│   Move and player validation helpers
+├── .gitignore
 │
-├── utils.py
-│   Coordinate conversion, bot turn helpers, and utility functions
-│
-├── board.py
-│   Board creation and board-related helpers
-│
-├── player.py
-│   Player model
-│
-├── database.py
-│   SQLite database logic for players and saved games
-│
-├── login_dialog.py
-│   Login, sign-up, and guest access screen
-│
-├── theme.py
-│   Application-wide GUI styling
-│
-└── assets/
-    └── pieces/
-        SVG chess piece icons
-
-practice/
-│
-└── Experimental and prototype code used during early development
+└── README.md
 ```
 
 ---
@@ -59,31 +77,31 @@ practice/
 
 ### Login / Guest Access
 
-![Login screen](screenshots/login.png)
+![Login screen](chess/screenshots/login.png)
 
 The game starts with a login screen. Users can sign in, create an account, or continue as a guest. Logged-in users can save games, load saved bot games, and track their ELO score.
 
 ### Main Menu
 
-![Main menu](screenshots/main-menu.png)
+![Main menu](chess/screenshots/main-menu.png)
 
 The main menu groups all game setup options into one screen. Players can choose between player-vs-player mode or playing against a bot. Bot games allow the player to choose their colour, bot difficulty, and time limit.
 
 ### Gameplay
 
-![Gameplay screen](screenshots/gameplay.png)
+![Gameplay screen](chess/screenshots/gameplay.png)
 
 The main game screen includes the chess board, legal move highlighting, last-move highlighting, check detection, timers, captured pieces, and move history.
 
 ### Loading Saved Games
 
-![Load game screen](screenshots/load-game.png)
+![Load game screen](chess/screenshots/load-game.png)
 
 Logged-in users can load saved bot games. Saved games restore the board position, current turn, bot difficulty, timers, move history, and captured pieces.
 
 ### Game Over / ELO Update
 
-![Game over screen](screenshots/game-over.png)
+![Game over screen](chess/screenshots/game-over.png)
 
 When a game ends by checkmate, stalemate, timeout, or resignation, the result is shown in a popup. Logged-in users have their ELO score and win/loss/draw record updated automatically.
 
