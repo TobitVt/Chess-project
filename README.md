@@ -55,6 +55,41 @@ practice/
 
 ---
 
+## Screenshots
+
+### Login / Guest Access
+
+![Login screen](screenshots/login.png)
+
+The game starts with a login screen. Users can sign in, create an account, or continue as a guest. Logged-in users can save games, load saved bot games, and track their ELO score.
+
+### Main Menu
+
+![Main menu](screenshots/main-menu.png)
+
+The main menu groups all game setup options into one screen. Players can choose between player-vs-player mode or playing against a bot. Bot games allow the player to choose their colour, bot difficulty, and time limit.
+
+### Gameplay
+
+![Gameplay screen](screenshots/gameplay.png)
+
+The main game screen includes the chess board, legal move highlighting, last-move highlighting, check detection, timers, captured pieces, and move history.
+
+### Loading Saved Games
+
+![Load game screen](screenshots/load-game.png)
+
+Logged-in users can load saved bot games. Saved games restore the board position, current turn, bot difficulty, timers, move history, and captured pieces.
+
+### Game Over / ELO Update
+
+![Game over screen](screenshots/game-over.png)
+
+When a game ends by checkmate, stalemate, timeout, or resignation, the result is shown in a popup. Logged-in users have their ELO score and win/loss/draw record updated automatically.
+
+
+---
+
 # Current Features
 
 ## Graphical User Interface
@@ -242,6 +277,7 @@ Implemented systems include:
 * Captured pieces display
 * Styled interface elements
 * ELO updates after completed games
+* Full GUI save/load game system
 
 ---
 
@@ -252,10 +288,6 @@ Planned or future improvements include:
 * Threefold repetition detection
 * Fifty-move rule
 * Insufficient material detection
-* Full GUI save/load game screen
-* Improved move notation
-* Better bot performance tuning
-* Settings menu
 * Packaged executable release
 * Unit tests for the chess engine
 

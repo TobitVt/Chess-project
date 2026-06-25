@@ -38,6 +38,16 @@ def create_tables():
     )
     """)
 
+    add_column_if_missing(cursor, "saved_games", "white_time_left", "INTEGER")
+
+    add_column_if_missing(cursor, "saved_games", "black_time_left", "INTEGER")
+
+    add_column_if_missing(cursor, "saved_games", "white_time_left", "INTEGER")
+    add_column_if_missing(cursor, "saved_games", "black_time_left", "INTEGER")
+    add_column_if_missing(cursor, "saved_games", "move_history", "TEXT")
+    add_column_if_missing(cursor, "saved_games", "white_captured_pieces", "TEXT")
+    add_column_if_missing(cursor, "saved_games", "black_captured_pieces", "TEXT")
+
     conn.commit()
     conn.close()
 
@@ -74,11 +84,15 @@ def get_player(u_name):
     return player
 
 
-def save_game(player_id, board, current_turn, bot_difficulty, bot_color=None, time_limit_seconds=None, player_time_left=None):
+def save_game(player_id, board, current_turn, bot_difficulty, bot_color=None, time_limit_seconds=None, player_time_left=None, white_time_left=None, black_time_left=None, 
+              move_history = None, white_captured_pieces = None, black_captured_pieces = None):
     conn = connect()
     cursor = conn.cursor()
 
     board_state = json.dumps(board)
+    move_history_state = json.dumps(move_history or [])
+    white_captured_state = json.dumps(white_captured_pieces or [])
+    black_captured_state = json.dumps(black_captured_pieces or [])
 
     cursor.execute("""
     INSERT INTO saved_games (
@@ -88,10 +102,28 @@ def save_game(player_id, board, current_turn, bot_difficulty, bot_color=None, ti
         bot_difficulty,
         bot_color,
         time_limit_seconds,
-        player_time_left
+        player_time_left,
+        white_time_left,
+        black_time_left,
+        move_history,
+        white_captured_pieces,
+        black_captured_pieces
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (player_id, board_state, current_turn, bot_difficulty, bot_color, time_limit_seconds, player_time_left))
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        player_id,
+        board_state,
+        current_turn,
+        bot_difficulty,
+        bot_color,
+        time_limit_seconds,
+        player_time_left,
+        white_time_left,
+        black_time_left,
+        move_history_state,
+        white_captured_state,
+        black_captured_state
+    ))
 
     conn.commit()
     save_id = cursor.lastrowid
@@ -120,7 +152,18 @@ def load_saved_game(save_id):
     cursor = conn.cursor()
 
     cursor.execute("""
-    SELECT board_state, current_turn, bot_difficulty, bot_color, time_limit_seconds, player_time_left
+    SELECT
+        board_state,
+        current_turn,
+        bot_difficulty,
+        bot_color,
+        time_limit_seconds,
+        player_time_left,
+        white_time_left,
+        black_time_left,
+        move_history,
+        white_captured_pieces,
+        black_captured_pieces
     FROM saved_games
     WHERE save_id = ?
     """, (save_id,))
@@ -131,17 +174,32 @@ def load_saved_game(save_id):
     if save is None:
         return None
 
-    board_state, current_turn, bot_difficulty, bot_color, time_limit_seconds, player_time_left = save
-
-    board = json.loads(board_state)
+    (
+        board_state,
+        current_turn,
+        bot_difficulty,
+        bot_color,
+        time_limit_seconds,
+        player_time_left,
+        white_time_left,
+        black_time_left,
+        move_history,
+        white_captured_pieces,
+        black_captured_pieces
+    ) = save
 
     return {
-        "board": board,
+        "board": json.loads(board_state),
         "current_turn": current_turn,
         "bot_difficulty": bot_difficulty,
         "bot_color": bot_color,
         "time_limit_seconds": time_limit_seconds,
         "player_time_left": player_time_left,
+        "white_time_left": white_time_left,
+        "black_time_left": black_time_left,
+        "move_history": json.loads(move_history) if move_history else [],
+        "white_captured_pieces": json.loads(white_captured_pieces) if white_captured_pieces else [],
+        "black_captured_pieces": json.loads(black_captured_pieces) if black_captured_pieces else []
     }
 
 def hash_password(password):
@@ -169,3 +227,10 @@ def verify_login(u_name, p_word):
         "draws": user_info[6],
         "is_guest": False
     }
+
+def add_column_if_missing(cursor, table_name, column_name, column_definition):
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    columns = [column[1] for column in cursor.fetchall()]
+
+    if column_name not in columns:
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}")

@@ -78,6 +78,11 @@ def apply_game_result_elo(chess_game, result, human_player, human_player_id):
         actual_score = 0.5
         outcome = "draw"
 
+    
+    elif result["outcome"] == "resign" and result.get("winner") is None:
+        actual_score = 0.0
+        outcome = "loss"
+
     else:
         winner = result.get("winner")
 

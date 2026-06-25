@@ -23,9 +23,11 @@ from PySide6.QtGui import QIcon
 
 from pieces import create_piece_object
 
-from move_validator import *
-from utils import *
-from elo import *
+from move_validator import validate_player_move
+from utils import convert_to_chess_notation, perform_bot_turn
+
+from database import save_game
+from elo import apply_game_result_elo
 
 # stores path to piece images in global variable
 ASSETS_PATH = Path(__file__).resolve().parent.parent / "assets" / "pieces"
@@ -70,17 +72,17 @@ class ChessBoard(QMainWindow):
         self.bot_difficulty = game_settings["bot_difficulty"]
 
         self.time_limit_seconds = game_settings["time_limit_seconds"]
-        self.white_time_left = self.time_limit_seconds
-        self.black_time_left = self.time_limit_seconds
+        self.white_time_left = game_settings.get("white_time_left", self.time_limit_seconds)
+        self.black_time_left = game_settings.get("black_time_left", self.time_limit_seconds)
 
         self.buttons = []
         self.selected = None
         self.selected_moves = []
         self.last_move = None
-        self.move_history = []
 
-        self.white_captured_pieces = []
-        self.black_captured_pieces = []
+        self.move_history = list(game_settings.get("move_history", []))
+        self.white_captured_pieces = list(game_settings.get("white_captured_pieces", []))
+        self.black_captured_pieces = list(game_settings.get("black_captured_pieces", []))
 
         self.clock_timer = QTimer(self)
         self.clock_timer.timeout.connect(self.update_chess_clock)
@@ -285,6 +287,51 @@ class ChessBoard(QMainWindow):
         side_layout.addWidget(history_title)
         side_layout.addWidget(self.history_list)
 
+        save_button = QPushButton("Save Game")
+        save_button.setMinimumHeight(45)
+        save_button.setStyleSheet("""
+            QPushButton {
+                font-size: 16px;
+                font-weight: bold;
+                background-color: #5D4037;
+                color: white;
+                border: none;
+                padding: 8px;
+            }
+
+            QPushButton:hover {
+                background-color: #795548;
+            }
+        """)
+
+        save_button.clicked.connect(self.save_current_game)
+
+
+        if self.is_guest or self.game_mode != "bot":
+            save_button.setEnabled(False)
+
+        side_layout.addWidget(save_button)
+
+        resign_button = QPushButton("Resign")
+        resign_button.setMinimumHeight(45)
+        resign_button.setStyleSheet("""
+            QPushButton {
+                font-size: 16px;
+                font-weight: bold;
+                background-color: #8D6E63;
+                color: white;
+                border: none;
+                padding: 8px;
+            }
+
+            QPushButton:hover {
+                background-color: #A1887F;
+            }
+        """)
+
+        resign_button.clicked.connect(self.resign_game)
+        side_layout.addWidget(resign_button)
+
         restart_button = QPushButton("Restart Game")
         restart_button.setMinimumHeight(45)
         restart_button.setStyleSheet("""
@@ -321,7 +368,7 @@ class ChessBoard(QMainWindow):
             }
         """)
 
-        quit_button.clicked.connect(QApplication.quit)
+        quit_button.clicked.connect(self.quit_game)
 
         side_layout.addWidget(restart_button)
         side_layout.addWidget(quit_button)
@@ -331,6 +378,9 @@ class ChessBoard(QMainWindow):
 
         main_container.setLayout(main_layout)
         self.setCentralWidget(main_container)
+
+        self.refresh_move_history_list()
+        self.refresh_captured_pieces_lists()
 
         self.refresh_board()
         self.update_game_status()
@@ -347,28 +397,11 @@ class ChessBoard(QMainWindow):
         from_square = convert_to_chess_notation(start_row, start_col)
         to_square = convert_to_chess_notation(end_row, end_col)
 
-        move_text = f"{player.capitalize()}: {from_square} → {to_square}\n"
+        move_text = f"{player.capitalize()}: {from_square} → {to_square}"
 
         self.move_history.append(move_text)
 
-        self.history_list.clear()
-
-        move_number = 1
-
-        for i in range(0, len(self.move_history), 2):
-            white_move = self.move_history[i]
-
-            if i + 1 < len(self.move_history):
-                black_move = self.move_history[i + 1]
-                display_text = f"{move_number}. {white_move}    {black_move}"
-            else:
-                display_text = f"{move_number}. {white_move}"
-
-            self.history_list.addItem(display_text)
-            move_number += 1
-
-        self.history_list.scrollToBottom()
-
+        self.refresh_move_history_list()
 
     def create_coordinate_label(self, text):
         label = QLabel(text)
@@ -834,3 +867,122 @@ class ChessBoard(QMainWindow):
             f"Losses: {self.logged_in_player['losses']}  "
             f"Draws: {self.logged_in_player['draws']}"
         )
+
+    def save_current_game(self):
+        if self.is_guest or self.player_id is None:
+            QMessageBox.warning(self, "Cannot save", "Guest games cannot be saved.")
+            return
+
+        if self.game_mode != "bot":
+            QMessageBox.warning(self, "Cannot save", "Only bot games can currently be saved.")
+            return
+
+        save_id = save_game(
+            player_id=self.player_id,
+            board=self.game.board,
+            current_turn=self.game.current_p,
+            bot_difficulty=self.bot_difficulty,
+            bot_color=self.bot_player,
+            time_limit_seconds=self.time_limit_seconds,
+            white_time_left=self.white_time_left,
+            black_time_left=self.black_time_left,
+            move_history=self.move_history,
+            white_captured_pieces=self.white_captured_pieces,
+            black_captured_pieces=self.black_captured_pieces
+        )
+
+        QMessageBox.information(self, "Game saved", "Game saved successfully.\nSave ID: {save_id}")
+
+    def quit_game(self):
+        if (not self.is_guest and self.player_id is not None and self.game_mode == "bot" and not self.game_over):
+            choice = QMessageBox.question(self, "Save before quitting?", "Do you want to save this game before quitting?", QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel, QMessageBox.Yes)
+
+            if choice == QMessageBox.Cancel:
+                return
+
+            if choice == QMessageBox.Yes:
+                self.save_current_game()
+
+        QApplication.quit()
+
+    def refresh_move_history_list(self):
+        self.history_list.clear()
+
+        move_number = 1
+
+        for i in range(0, len(self.move_history), 2):
+            white_move = self.move_history[i]
+
+            if i + 1 < len(self.move_history):
+                black_move = self.move_history[i + 1]
+                display_text = f"{move_number}. {white_move}    {black_move}"
+            else:
+                display_text = f"{move_number}. {white_move}"
+
+            self.history_list.addItem(display_text)
+            move_number += 1
+
+        self.history_list.scrollToBottom()
+
+    def refresh_captured_pieces_lists(self):
+        self.white_captured_list.clear()
+        self.black_captured_list.clear()
+
+        for captured_piece in self.white_captured_pieces:
+            item = QListWidgetItem(self.get_piece_display_name(captured_piece))
+
+            image_path = ASSETS_PATH / piece_images[captured_piece]
+            item.setIcon(QIcon(str(image_path)))
+
+            self.white_captured_list.addItem(item)
+
+        for captured_piece in self.black_captured_pieces:
+            item = QListWidgetItem(self.get_piece_display_name(captured_piece))
+
+            image_path = ASSETS_PATH / piece_images[captured_piece]
+            item.setIcon(QIcon(str(image_path)))
+
+            self.black_captured_list.addItem(item)
+
+    def resign_game(self):
+        if self.game_over:
+            return
+
+        if self.game_mode == "bot":
+            resigning_player = self.human_player
+        else:
+            resigning_player = self.game.current_p
+
+        winner_color = "black" if resigning_player == "white" else "white"
+
+        choice = QMessageBox.question(self, "Confirm resignation", f"Are you sure {resigning_player.capitalize()} wants to resign?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+
+        if choice != QMessageBox.Yes:
+            return
+
+        message = (f"{resigning_player.capitalize()} resigned. " f"{winner_color.capitalize()} wins!")
+
+        result = {
+            "outcome": "resign",
+            "winner": winner_color
+        }
+
+        elo_message = self.apply_elo_result(result)
+
+        popup_message = message
+
+        if elo_message is not None:
+            popup_message += f"\n\n{elo_message}"
+
+        self.game_over = True
+        self.selected = None
+        self.selected_moves = []
+
+        if hasattr(self, "clock_timer"):
+            self.clock_timer.stop()
+
+        self.statusBar().showMessage(message)
+        self.refresh_board()
+        self.update_timer_labels()
+
+        self.show_game_end_popup("Game Over", popup_message)
