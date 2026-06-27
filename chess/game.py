@@ -14,6 +14,8 @@ class Game:
         self.turn_count = 0
         self.legal_moves = []
         self.last_captured_piece = None
+        self.search_cache = {}
+        self.killer_moves = {}
 
         self.players = {
             "white": pWhite,
@@ -120,7 +122,7 @@ class Game:
         self.board[row1][col1] = "-"
 
         return captured_piece, en_passant_info
-    
+
     def undo_move(self, row1, col1, row2, col2, move_info):
         captured_piece, en_passant_info = move_info
 
@@ -410,6 +412,8 @@ class Game:
 
         self.switch_turn()
 
+        self.search_cache.clear()
+
     def get_moves_for_player(self, player):
         moves = []
 
@@ -553,7 +557,7 @@ class Game:
 
         # punish move that creates danger
         if self.is_square_attacked(r2, c2, enemy):
-            score -= moving_score * 3
+            score -= moving_score * 4
 
         # reward check/checkmate
         if self.is_checkmate(enemy):
@@ -640,6 +644,7 @@ class Game:
 
                 piece_type = piece.lower()
                 value = piece_values[piece_type]
+                
 
                 if bot_player == "white":
                     is_bot_piece = piece.isupper()
@@ -717,17 +722,18 @@ class Game:
             score -= 3
 
         # mobility bonus
-        bot_moves = len(self.get_moves_for_player(bot_player))
-        enemy_moves = len(self.get_moves_for_player(enemy))
+        if self.count_pieces() < 20:
+            bot_moves = len(self.get_moves_for_player(bot_player))
+            enemy_moves = len(self.get_moves_for_player(enemy))
 
-        mobility_difference = bot_moves - enemy_moves
+            mobility_difference = bot_moves - enemy_moves
 
-        score += mobility_difference * 0.1
+            score += mobility_difference * 0.1
 
 
         return score
     
-    def order_moves(self, player, moves):
+    def order_moves(self, player, moves, depth):
         ordered_candidates = []
 
         for m in moves:
@@ -741,6 +747,42 @@ class Game:
                 targ_val = piece_values[targ]
 
                 ordering_score += targ_val * 10
+
+            
+            if self.killer_moves.get(depth) == m:
+                ordering_score += 1000
+
+            # punish queen under attack
+            move_info = self.simulate_search_move(r1, c1, r2, c2)
+
+            queen = "Q" if player == "white" else "q"
+
+            qR = 0
+            qC = 0
+
+            for r in range(8):
+                for c in range(8):
+                    if self.board[r][c] == queen:
+                        qR = r
+                        qC = c
+                        break
+                break
+
+            enemy = self.get_enemy_player(player)
+            if self.is_square_attacked(qR, qC, enemy):
+                ordering_score -= 40
+
+            self.undo_search_move(r1, c1, r2, c2, move_info)
+
+            # punish king moving prematuraly if not castling
+            p_king = "K" if player == "white" else "k"
+            pc = self.count_pieces()
+
+            if pc > 12 and mov == p_king:
+                if abs(c2-c1)!=2:
+
+                    ordering_score -= 25
+
             
             # reward pawn promotion
             if mov == "p":
@@ -837,7 +879,7 @@ class Game:
             return search_cache[cache_key]
         
         moves = self.get_moves_for_player(player_to_move)
-        moves = self.order_moves(player_to_move, moves)
+        moves = self.order_moves(player_to_move, moves, depth)
 
         if len(moves) == 0:
             if self.is_in_check(player_to_move):
@@ -875,6 +917,7 @@ class Game:
 
                 if beta <= alpha:
                     pruned = True
+                    self.killer_moves[depth] = m
                     break
             
             if not pruned:
@@ -902,6 +945,7 @@ class Game:
 
                 if beta <= alpha:
                     pruned = True
+                    self.killer_moves[depth] = m
                     break
 
             if not pruned:
@@ -912,15 +956,18 @@ class Game:
 
     def hardBot_move(self):
 
-        search_cache = {}
         piece_count = self.count_pieces()
 
-        if piece_count > 24:
-            depth = 2
-        elif piece_count > 12:
-            depth = 3
-        else:
+        if piece_count > 28:
             depth = 4
+        elif piece_count >= 21 and piece_count < 28:
+            depth = 5
+        elif piece_count >= 13 and piece_count < 21:
+            depth = 6
+        elif piece_count >= 8 and piece_count < 13:
+            depth = 7
+        else:
+            depth = 8
 
 
         alpha = -99999
@@ -931,31 +978,35 @@ class Game:
         enemy = self.get_enemy_player(bot)
 
         moves = self.get_moves_for_player(bot)
-        moves = self.order_moves(bot, moves)
+        moves = self.order_moves(bot, moves, depth)
 
-
-        if len(moves) == 0:
-            return None
-        
         best_score = -99999
         best_moves = []
+
+        if len(moves)==0:
+            return None
 
         for m in moves:
             r1, c1, r2, c2 = m
 
             sim_move = self.simulate_search_move(r1, c1, r2, c2)
 
-            score = self.minimax(depth - 1, enemy, bot, alpha, beta, search_cache)
+            score = self.minimax(depth - 1, enemy, bot, alpha, beta, self.search_cache)
 
             self.undo_search_move(r1, c1, r2, c2, sim_move)
 
             if score > best_score:
                 best_score = score
                 best_moves = [m]
+                alpha = max(alpha, best_score)
 
             elif score == best_score:
                 best_moves.append(m)
 
+        if not best_moves:
+            best_moves = [moves[0]]
+
+        
         final = random.choice(best_moves)
 
         row1, col1, row2, col2 = final

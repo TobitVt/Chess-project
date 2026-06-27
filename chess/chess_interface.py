@@ -13,7 +13,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QListWidget,
     QMessageBox,
-    QListWidgetItem
+    QListWidgetItem,
+    QSizePolicy,
+    QDialog
 )
 
 from pathlib import Path
@@ -28,6 +30,7 @@ from utils import convert_to_chess_notation, perform_bot_turn
 
 from database import save_game
 from elo import apply_game_result_elo
+from main_menu import MainMenuDialog
 
 # stores path to piece images in global variable
 ASSETS_PATH = Path(__file__).resolve().parent.parent / "assets" / "pieces"
@@ -51,6 +54,20 @@ piece_images = {
     "n": "black_knight.svg",
     "p": "black_pawn.svg"
 }
+
+class ChessSquareButton(QPushButton):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        # Allows the button to freely expand in all directions
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # Remove any fixed minimum size
+        self.setMinimumSize(0, 0)
+
+    def heightForWidth(self, width):
+        return width  # Keeps height identical to width
+
+    def hasHeightForWidth(self):
+        return True  # Tells PySide6 to respect the function above
 
 
 class ChessBoard(QMainWindow):
@@ -94,26 +111,44 @@ class ChessBoard(QMainWindow):
         # create main window
 
         self.setWindowTitle("Chess board")
-        self.resize(900, 900)
+        self.resize(1100, 900)  # Good default size for most screens
+        self.setMinimumSize(800, 600)  # Minimum usable size
 
         main_container = QWidget()
 
+        # Main layout with proper stretch factors
         main_layout = QHBoxLayout()
-        board_layout = QGridLayout()
-        side_layout = QVBoxLayout()
+        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(10, 10, 10, 10)
 
+        # Board container with fixed aspect ratio
+        board_container = QWidget()
+        board_container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        board_container_layout = QVBoxLayout()
+        board_container_layout.setSpacing(0)
+        board_container_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Create the board layout
+        board_layout = QGridLayout()
         board_layout.setSpacing(0)
-        board_layout.setContentsMargins(20, 20, 20, 20)
+        board_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Side layout
+        side_layout = QVBoxLayout()
+        side_layout.setSpacing(8)
+        side_layout.setContentsMargins(0, 0, 0, 0)
 
 
         for row in range(8):
             button_row = []
 
             for col in range(8):
-                # create buttons
-                block = QPushButton()
-                block.setMinimumSize(100, 110)
-                block.setIconSize(QSize(75, 75))
+                block = ChessSquareButton()
+                
+                # Remove fixed minimum size
+                block.setMinimumSize(0, 0)
+                # Set a default icon size that will be updated
+                block.setIconSize(QSize(50, 50))  # Default size
 
                 block.clicked.connect(lambda checked=False, display_row=row, display_col=col:
                     self.handle_square_click(*self.display_to_board(display_row, display_col)))
@@ -151,23 +186,27 @@ class ChessBoard(QMainWindow):
             label = self.create_coordinate_label(ranks[row])
             board_layout.addWidget(label, row + 1, 9)
 
+        # Set the layout for the board container
+        board_container_layout.addLayout(board_layout)
+        board_container.setLayout(board_container_layout)
 
         history_title = QLabel("Move History")
         history_title.setAlignment(Qt.AlignCenter)
         history_title.setStyleSheet("""
             QLabel {
-                font-size: 20px;
+                font-size: 16px;
                 font-weight: bold;
                 color: white;
-                padding: 10px;
+                padding: 5px;
             }
         """)
 
         self.history_list = QListWidget()
-        self.history_list.setMinimumWidth(220)
+        self.history_list.setMinimumWidth(200)
+        self.history_list.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Expanding)
         self.history_list.setStyleSheet("""
             QListWidget {
-                font-size: 16px;
+                font-size: 14px;
                 background-color: #2E2E2E;
                 color: white;
                 border: 2px solid #5D4037;
@@ -176,19 +215,17 @@ class ChessBoard(QMainWindow):
         """)
 
         self.profile_label = QLabel()
-
         self.profile_label.setAlignment(Qt.AlignCenter)
         self.profile_label.setStyleSheet("""
             QLabel {
-                font-size: 15px;
+                font-size: 13px;
                 font-weight: bold;
                 color: white;
                 background-color: #2E2E2E;
                 border: 2px solid #5D4037;
-                padding: 10px;
+                padding: 8px;
             }
         """)
-
         self.update_profile_label()
 
         side_layout.addWidget(self.profile_label)
@@ -197,10 +234,10 @@ class ChessBoard(QMainWindow):
         timer_title.setAlignment(Qt.AlignCenter)
         timer_title.setStyleSheet("""
             QLabel {
-                font-size: 20px;
+                font-size: 16px;
                 font-weight: bold;
                 color: white;
-                padding: 10px;
+                padding: 5px;
             }
         """)
 
@@ -209,12 +246,12 @@ class ChessBoard(QMainWindow):
 
         timer_label_style = """
             QLabel {
-                font-size: 18px;
+                font-size: 16px;
                 font-weight: bold;
                 color: white;
                 background-color: #2E2E2E;
                 border: 2px solid #5D4037;
-                padding: 8px;
+                padding: 5px;
             }
         """
 
@@ -232,10 +269,10 @@ class ChessBoard(QMainWindow):
         captured_title.setAlignment(Qt.AlignCenter)
         captured_title.setStyleSheet("""
             QLabel {
-                font-size: 20px;
+                font-size: 16px;
                 font-weight: bold;
                 color: white;
-                padding: 10px;
+                padding: 5px;
             }
         """)
 
@@ -247,7 +284,7 @@ class ChessBoard(QMainWindow):
 
         label_style = """
             QLabel {
-                font-size: 15px;
+                font-size: 13px;
                 font-weight: bold;
                 color: white;
             }
@@ -261,7 +298,7 @@ class ChessBoard(QMainWindow):
 
         captured_list_style = """
             QListWidget {
-                font-size: 14px;
+                font-size: 12px;
                 background-color: #2E2E2E;
                 color: white;
                 border: 2px solid #5D4037;
@@ -272,11 +309,11 @@ class ChessBoard(QMainWindow):
         self.white_captured_list.setStyleSheet(captured_list_style)
         self.black_captured_list.setStyleSheet(captured_list_style)
 
-        self.white_captured_list.setIconSize(QSize(28, 28))
-        self.black_captured_list.setIconSize(QSize(28, 28))
+        self.white_captured_list.setIconSize(QSize(24, 24))
+        self.black_captured_list.setIconSize(QSize(24, 24))
 
-        self.white_captured_list.setMaximumHeight(120)
-        self.black_captured_list.setMaximumHeight(120)
+        self.white_captured_list.setMaximumHeight(100)
+        self.black_captured_list.setMaximumHeight(100)
 
         side_layout.addWidget(captured_title)
         side_layout.addWidget(white_captured_label)
@@ -287,94 +324,89 @@ class ChessBoard(QMainWindow):
         side_layout.addWidget(history_title)
         side_layout.addWidget(self.history_list)
 
+        # Buttons
         save_button = QPushButton("Save Game")
-        save_button.setMinimumHeight(45)
+        save_button.setMinimumHeight(35)
         save_button.setStyleSheet("""
             QPushButton {
-                font-size: 16px;
+                font-size: 14px;
                 font-weight: bold;
                 background-color: #5D4037;
                 color: white;
                 border: none;
-                padding: 8px;
+                padding: 6px;
             }
-
             QPushButton:hover {
                 background-color: #795548;
             }
         """)
-
         save_button.clicked.connect(self.save_current_game)
-
-
+        
         if self.is_guest or self.game_mode != "bot":
             save_button.setEnabled(False)
-
         side_layout.addWidget(save_button)
 
         resign_button = QPushButton("Resign")
-        resign_button.setMinimumHeight(45)
+        resign_button.setMinimumHeight(35)
         resign_button.setStyleSheet("""
             QPushButton {
-                font-size: 16px;
+                font-size: 14px;
                 font-weight: bold;
                 background-color: #8D6E63;
                 color: white;
                 border: none;
-                padding: 8px;
+                padding: 6px;
             }
-
             QPushButton:hover {
                 background-color: #A1887F;
             }
         """)
-
         resign_button.clicked.connect(self.resign_game)
         side_layout.addWidget(resign_button)
 
         restart_button = QPushButton("Restart Game")
-        restart_button.setMinimumHeight(45)
+        restart_button.setMinimumHeight(35)
         restart_button.setStyleSheet("""
             QPushButton {
-                font-size: 16px;
+                font-size: 14px;
                 font-weight: bold;
                 background-color: #FBC02D;
                 color: black;
                 border: none;
-                padding: 8px;
+                padding: 6px;
             }
-
             QPushButton:hover {
                 background-color: #FDD835;
             }
         """)
-
         restart_button.clicked.connect(self.restart_game)
 
+        side_layout.addWidget(restart_button)
+
         quit_button = QPushButton("Quit")
-        quit_button.setMinimumHeight(45)
+        quit_button.setMinimumHeight(35)
         quit_button.setStyleSheet("""
             QPushButton {
-                font-size: 16px;
+                font-size: 14px;
                 font-weight: bold;
                 background-color: #B71C1C;
                 color: white;
                 border: none;
-                padding: 8px;
+                padding: 6px;
             }
-
             QPushButton:hover {
                 background-color: #D32F2F;
             }
         """)
-
         quit_button.clicked.connect(self.quit_game)
-
-        side_layout.addWidget(restart_button)
         side_layout.addWidget(quit_button)
 
-        main_layout.addLayout(board_layout)
-        main_layout.addLayout(side_layout)
+        # Add stretch to push widgets to the top
+        side_layout.addStretch()
+
+        # Add board container and side layout to main layout
+        main_layout.addWidget(board_container, stretch=3)  # Board takes 3 parts
+        main_layout.addLayout(side_layout, stretch=1)     # Side takes 1 part
 
         main_container.setLayout(main_layout)
         self.setCentralWidget(main_container)
@@ -391,6 +423,53 @@ class ChessBoard(QMainWindow):
         # The white bot must make the opening move
         if self.game_mode == "bot" and self.bot_player == "white":
             QTimer.singleShot(500, self.run_bot_turn)
+        
+        # Force an initial layout update to properly size everything
+        QTimer.singleShot(10, self.initial_layout_fix)
+
+    def initial_layout_fix(self):
+        """Force initial layout to calculate proper sizes."""
+        # Force the window to process events and calculate layouts
+        self.repaint()
+        self.updateGeometry()
+        
+        # Manually trigger resize event to set icon sizes
+        if hasattr(self, 'buttons') and self.buttons:
+            first_button = self.buttons[0][0]
+            if first_button and first_button.width() > 0:
+                icon_size = max(16, int(first_button.width() * 0.75))
+                dynamic_size = QSize(icon_size, icon_size)
+                
+                for row in range(8):
+                    for col in range(8):
+                        self.buttons[row][col].setIconSize(dynamic_size)
+                
+                self.white_captured_list.setIconSize(QSize(max(16, icon_size // 3), max(16, icon_size // 3)))
+                self.black_captured_list.setIconSize(QSize(max(16, icon_size // 3), max(16, icon_size // 3)))
+
+    def resizeEvent(self, event):
+        """Handle resize events to dynamically scale piece icons."""
+        super().resizeEvent(event)
+        
+        # Check if the board has been generated yet
+        if hasattr(self, 'buttons') and self.buttons:
+            # Get the actual current width of a board square
+            first_button = self.buttons[0][0]
+            if first_button and first_button.width() > 0:
+                # Calculate icon size as a percentage of the square size
+                # Use 70-80% of the square size for the icon
+                icon_size = max(16, int(first_button.width() * 0.75))
+                dynamic_size = QSize(icon_size, icon_size)
+                
+                # Update all buttons' icon sizes
+                for row in range(8):
+                    for col in range(8):
+                        self.buttons[row][col].setIconSize(dynamic_size)
+                
+                # Update captured pieces icons
+                self.white_captured_list.setIconSize(QSize(max(16, icon_size // 3), max(16, icon_size // 3)))
+                self.black_captured_list.setIconSize(QSize(max(16, icon_size // 3), max(16, icon_size // 3)))
+
             
 
     def add_move_to_history(self, player, start_row, start_col, end_row, end_col):
@@ -585,9 +664,13 @@ class ChessBoard(QMainWindow):
 
 
     def restart_game(self):
-        QProcess.startDetached(sys.executable, sys.argv, os.getcwd())
 
-        QApplication.quit()
+        if hasattr(self, 'clock_timer'):
+                self.clock_timer.stop()
+
+        # Close the current window
+        self.close()
+        
 
 
     def handle_square_click(self, row, col):
@@ -903,7 +986,17 @@ class ChessBoard(QMainWindow):
             if choice == QMessageBox.Yes:
                 self.save_current_game()
 
-        QApplication.quit()
+            # Stop the timer
+        if hasattr(self, 'clock_timer'):
+            self.clock_timer.stop()
+        
+        self.close()
+
+    def closeEvent(self, event):
+        if hasattr(self, 'clock_timer'):
+            self.clock_timer.stop()
+            
+        event.accept()
 
     def refresh_move_history_list(self):
         self.history_list.clear()
